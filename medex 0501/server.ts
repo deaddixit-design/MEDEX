@@ -970,9 +970,9 @@ if (batchMemoryCount.count === 0) {
 
 // Seed default core settings for specific image keys if not already present
 const defaultSettings = [
-  { key: 'home_image_1', value: '/images/hero_1.png' },
-  { key: 'home_image_2', value: '/images/hero_2.png' },
-  { key: 'home_image_3', value: '/images/hero_3.png' },
+  { key: 'home_image_1', value: '/images/Hero 01.webp' },
+  { key: 'home_image_2', value: '/images/Hero 02.webp' },
+  { key: 'home_image_3', value: '/images/Hero 03.webp' },
   { key: 'polaroid_image_1', value: '/images/polaroid_1.png' },
   { key: 'polaroid_image_2', value: '/images/polaroid_2.png' },
   { key: 'polaroid_image_3', value: '/images/polaroid_3.png' },
