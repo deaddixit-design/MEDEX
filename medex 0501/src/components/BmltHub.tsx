@@ -347,6 +347,12 @@ export function BmltHub() {
     if (selectedGuess === slide.targetCell) {
       setSlideStatus('correct');
       setUserScore(prev => prev + 10);
+      fetch('/api/student/earn-points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pointsToAdd: 10, id: slide.id, type: 'bmlt_slide' }),
+        credentials: 'include'
+      }).catch(err => console.error("Error rewarding points:", err));
     } else {
       setSlideStatus('wrong');
     }
@@ -542,6 +548,12 @@ export function BmltHub() {
       setCaseQuizFeedback(`Correct Assessment! "${matchedAnswerText}" is highly diagnostic based on the presented biochemical markers and patient criteria. (+15 score)`);
       if (!caseQuizFeedback.includes('Correct')) {
         setUserScore(prev => prev + 15);
+        fetch('/api/student/earn-points', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pointsToAdd: 15, id: cId, type: 'bmlt_case' }),
+          credentials: 'include'
+        }).catch(err => console.error("Error rewarding points:", err));
       }
     } else {
       setCaseQuizFeedback(`Incorrect Clinical Interpretation. Review biochemical ranges or physiological clues again and explore other choices.`);
@@ -1605,6 +1617,12 @@ export function BmltHub() {
                                   setParagraphFeedback(pFeed);
                                   if (scoreReward > 0) {
                                     setUserScore(prev => prev + scoreReward);
+                                    fetch('/api/student/earn-points', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ pointsToAdd: scoreReward, id: activeCase.id, type: 'bmlt_case_paragraph' }),
+                                      credentials: 'include'
+                                    }).catch(err => console.error("Error rewarding points:", err));
                                   }
                                 }}
                                 className="px-5 py-2.5 bg-indigo-600 hover:bg-zinc-900 text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-md transition-all shrink-0 font-mono border-0"
