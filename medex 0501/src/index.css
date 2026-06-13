@@ -1,0 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;650;700;800;900&family=Caveat:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", "Inter", sans-serif;
+  --font-cursive: "Caveat", cursive;
+  --color-ig-purple: #833ab4;
+  --color-ig-pink: #e1306c;
+  --color-ig-orange: #fcb045;
+  --color-ig-red: #fd1d1d;
+  --color-ig-yellow: #ffdc80;
+}
+
+@layer base {
+  body {
+    @apply antialiased text-zinc-900 bg-zinc-50;
+  }
+}
+
+.bg-ig-gradient {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+}
+
+.text-ig-gradient {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.tracking-tighter {
+  letter-spacing: -0.05em;
+}
+
+.tracking-tight {
+  letter-spacing: -0.02em;
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .subtle-scrollbar::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+  .subtle-scrollbar::-webkit-scrollbar-track {
+    background: #f4f4f5;
+    border-radius: 9999px;
+  }
+  .subtle-scrollbar::-webkit-scrollbar-thumb {
+    background: #d4d4d8;
+    border-radius: 9999px;
+    border: 1px solid #f4f4f5;
+  }
+  .subtle-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #a1a1aa;
+  }
+}
+
+@keyframes textShine {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.animate-title-shine {
+  background: linear-gradient(
+    120deg,
+    #f9ce34 0%,
+    #ee2a7b 20%,
+    #e1306c 35%,
+    #ffffff 50%,
+    #ee2a7b 65%,
+    #6228d7 80%,
+    #f9ce34 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShine 3.5s linear infinite;
+}
+
+.bg-ig-ocean-gradient {
+  background: linear-gradient(
+    270deg,
+    #0284c7,
+    #0ea5e9,
+    #bc1888,
+    #cc2366,
+    #e6683c,
+    #0284c7
+  );
+  background-size: 400% 400%;
+  animation: igOceanMove 8s ease infinite;
+}
+
+@keyframes igOceanMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+
