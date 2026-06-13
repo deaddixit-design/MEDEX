@@ -477,6 +477,9 @@ try {
       profile_pic TEXT NULL,
       correct_mcq_ids TEXT DEFAULT '[]',
       correct_bmlt_mcq_ids TEXT DEFAULT '[]',
+      correct_bmlt_slide_ids TEXT DEFAULT '[]',
+      correct_bmlt_case_ids TEXT DEFAULT '[]',
+      correct_bmlt_case_paragraph_ids TEXT DEFAULT '[]',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
@@ -485,6 +488,15 @@ try {
   } catch (e) {}
   try {
     db.prepare(`ALTER TABLE students ADD COLUMN section TEXT DEFAULT 'A'`).run();
+  } catch (e) {}
+  try {
+    db.prepare(`ALTER TABLE students ADD COLUMN correct_bmlt_slide_ids TEXT DEFAULT '[]'`).run();
+  } catch (e) {}
+  try {
+    db.prepare(`ALTER TABLE students ADD COLUMN correct_bmlt_case_ids TEXT DEFAULT '[]'`).run();
+  } catch (e) {}
+  try {
+    db.prepare(`ALTER TABLE students ADD COLUMN correct_bmlt_case_paragraph_ids TEXT DEFAULT '[]'`).run();
   } catch (e) {}
 } catch (e) {
   console.error("Error creating students table:", e);
@@ -3467,15 +3479,23 @@ User's described mood: "${mood}"
     }
   });
 
-  // Student awards point when answering MCQ correctly without duplicates
+  // Student awards point when answering MCQ, Slide, or Case correctly without duplicates
   app.post('/api/student/earn-points', (req, res) => {
     const studentId = (req.session as any).studentId;
     if (!studentId) {
       return res.status(401).json({ error: 'Student login required to earn points' });
     }
-    const { pointsToAdd, mcqId, isBmlt } = req.body;
-    if (mcqId === undefined || pointsToAdd === undefined) {
-      return res.status(400).json({ error: 'Missing pointsToAdd or mcqId' });
+    const { pointsToAdd, mcqId, isBmlt, type, id } = req.body;
+    
+    // Fallbacks to support older clients
+    const activityId = id !== undefined ? id : mcqId;
+    let activityType = type;
+    if (!activityType) {
+      activityType = isBmlt ? 'bmlt_mcq' : 'mcq';
+    }
+
+    if (activityId === undefined || pointsToAdd === undefined) {
+      return res.status(400).json({ error: 'Missing pointsToAdd or activity ID' });
     }
 
     try {
@@ -3486,20 +3506,30 @@ User's described mood: "${mood}"
 
       let correctIds: number[] = [];
       let fieldName = 'correct_mcq_ids';
-      if (isBmlt) {
+      
+      if (activityType === 'bmlt_mcq') {
         correctIds = JSON.parse(student.correct_bmlt_mcq_ids || '[]');
         fieldName = 'correct_bmlt_mcq_ids';
+      } else if (activityType === 'bmlt_slide') {
+        correctIds = JSON.parse(student.correct_bmlt_slide_ids || '[]');
+        fieldName = 'correct_bmlt_slide_ids';
+      } else if (activityType === 'bmlt_case') {
+        correctIds = JSON.parse(student.correct_bmlt_case_ids || '[]');
+        fieldName = 'correct_bmlt_case_ids';
+      } else if (activityType === 'bmlt_case_paragraph') {
+        correctIds = JSON.parse(student.correct_bmlt_case_paragraph_ids || '[]');
+        fieldName = 'correct_bmlt_case_paragraph_ids';
       } else {
         correctIds = JSON.parse(student.correct_mcq_ids || '[]');
       }
 
       // Check if already answered
-      if (correctIds.includes(Number(mcqId))) {
+      if (correctIds.includes(Number(activityId))) {
         return res.json({ 
           success: true, 
           alreadyEarned: true, 
           points: student.points,
-          msg: 'Points already earned for this MCQ' 
+          msg: 'Points already earned for this activity' 
         });
       }
 
@@ -3508,7 +3538,7 @@ User's described mood: "${mood}"
       
       if (pointsDelta > 0) {
         // Only push to correctIds if they actually scored positive points (correct answer)
-        correctIds.push(Number(mcqId));
+        correctIds.push(Number(activityId));
         updatedPoints = student.points + pointsDelta;
       } else {
         // Incorrect attempt (deduction), do not mark as correctly answered
@@ -3527,8 +3557,11 @@ User's described mood: "${mood}"
         success: true,
         alreadyEarned: false,
         points: updatedPoints,
-        correctMcqIds: isBmlt ? JSON.parse(student.correct_mcq_ids || '[]') : correctIds,
-        correctBmltMcqIds: isBmlt ? correctIds : JSON.parse(student.correct_bmlt_mcq_ids || '[]')
+        correctMcqIds: activityType === 'mcq' ? correctIds : JSON.parse(student.correct_mcq_ids || '[]'),
+        correctBmltMcqIds: activityType === 'bmlt_mcq' ? correctIds : JSON.parse(student.correct_bmlt_mcq_ids || '[]'),
+        correctBmltSlideIds: activityType === 'bmlt_slide' ? correctIds : JSON.parse(student.correct_bmlt_slide_ids || '[]'),
+        correctBmltCaseIds: activityType === 'bmlt_case' ? correctIds : JSON.parse(student.correct_bmlt_case_ids || '[]'),
+        correctBmltCaseParagraphIds: activityType === 'bmlt_case_paragraph' ? correctIds : JSON.parse(student.correct_bmlt_case_paragraph_ids || '[]')
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to record points' });
