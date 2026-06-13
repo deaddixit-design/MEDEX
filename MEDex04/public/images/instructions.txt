@@ -1,7 +1,0 @@
-Place your custom images (e.g. logo.png, banner.jpg) in this directory.
-You can reference them in your admin panel or your code using the path:
-/images/filename.extension
-
-For example:
-If you put 'school-logo.png' here, the URL will be:
-/images/school-logo.png
