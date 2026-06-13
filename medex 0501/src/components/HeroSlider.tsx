@@ -7,17 +7,17 @@ import { useProgram } from '../lib/ProgramContext';
 
 const defaultSlides: { image: string; title: string; subtitle: string; isProgram?: boolean }[] = [
   {
-    image: '/images/hero_1.png',
+    image: '/images/hero_1.webp',
     title: 'Precision Diagnostics',
     subtitle: 'Where Every Diagnostic Finds Its Desk. Connect, share and explore clinical lab findings.',
   },
   {
-    image: '/images/hero_2.png',
+    image: '/images/hero_2.webp',
     title: 'Academic Case Archives',
     subtitle: 'Review microscopic pathology slide specimens and analyze laboratory variables.',
   },
   {
-    image: '/images/hero_3.png',
+    image: '/images/hero_3.webp',
     title: 'Collaborative Medical Science',
     subtitle: 'Engage with peer medical students and experts in hematology, biochemistry and pathology.',
   },
@@ -56,33 +56,33 @@ export function HeroSlider() {
       isProgram: true
     },
     {
-      image: customSettings.home_image_1 || '/images/hero_1.png',
+      image: customSettings.home_image_1 || '/images/hero_1.webp',
       title: 'Precision Diagnostics',
       subtitle: 'Where Every Diagnostic Finds Its Desk. Connect, share and explore clinical lab findings.',
     },
     {
-      image: customSettings.home_image_2 || '/images/hero_2.png',
+      image: customSettings.home_image_2 || '/images/hero_2.webp',
       title: 'Academic Case Archives',
       subtitle: 'Review microscopic pathology slide specimens and analyze laboratory variables.',
     },
     {
-      image: customSettings.home_image_3 || '/images/hero_3.png',
+      image: customSettings.home_image_3 || '/images/hero_3.webp',
       title: 'Collaborative Medical Science',
       subtitle: 'Engage with peer medical students and experts in hematology, biochemistry and pathology.',
     },
   ] : [
     {
-      image: customSettings.home_image_1 || '/images/hero_1.png',
+      image: customSettings.home_image_1 || '/images/hero_1.webp',
       title: 'Precision Diagnostics',
       subtitle: 'Where Every Diagnostic Finds Its Desk. Connect, share and explore clinical lab findings.',
     },
     {
-      image: customSettings.home_image_2 || '/images/hero_2.png',
+      image: customSettings.home_image_2 || '/images/hero_2.webp',
       title: 'Academic Case Archives',
       subtitle: 'Review microscopic pathology slide specimens and analyze laboratory variables.',
     },
     {
-      image: customSettings.home_image_3 || '/images/hero_3.png',
+      image: customSettings.home_image_3 || '/images/hero_3.webp',
       title: 'Collaborative Medical Science',
       subtitle: 'Engage with peer medical students and experts in hematology, biochemistry and pathology.',
     },
