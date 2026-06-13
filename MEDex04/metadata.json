@@ -1,6 +1,0 @@
-{
-  "name": "MEDex",
-  "description": "A premier digital medical education, laboratory diagnostics, and clinical learning portal.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
