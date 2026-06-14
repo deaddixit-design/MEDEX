@@ -421,9 +421,14 @@ try {
       option_d TEXT NULL,
       correct_option TEXT NULL,
       correct_guidelines TEXT NULL,
+      normal_params TEXT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+} catch (e) {}
+
+try {
+  db.prepare(`ALTER TABLE bmlt_case_studies ADD COLUMN normal_params TEXT NULL`).run();
 } catch (e) {}
 
 try {
@@ -3259,7 +3264,7 @@ User's described mood: "${mood}"
           options: optionsStr,
           correct: correctText,
           explanation: c.correct_guidelines || '',
-          normalParams: ''
+          normalParams: c.normal_params || ''
         };
       });
       res.json(mapped);
@@ -3272,7 +3277,8 @@ User's described mood: "${mood}"
     const { 
       title, presentation, scenario, type, question, 
       option_a, option_b, option_c, option_d, options,
-      correct_option, correct, correct_guidelines, explanation 
+      correct_option, correct, correct_guidelines, explanation,
+      normalParams, normal_params
     } = req.body;
     
     const final_presentation = presentation || scenario;
@@ -3309,13 +3315,14 @@ User's described mood: "${mood}"
     }
 
     const final_correct_guidelines = type === 'paragraph' ? (correct_guidelines || explanation || correct || null) : null;
+    const final_normal_params = normalParams !== undefined ? normalParams : (normal_params !== undefined ? normal_params : null);
 
     try {
       const info = db.prepare(`
-        INSERT INTO bmlt_case_studies (title, presentation, type, question, option_a, option_b, option_c, option_d, correct_option, correct_guidelines)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(title, final_presentation, type, question, a || null, b || null, c || null, d || null, final_correct_option, final_correct_guidelines);
-      res.json({ id: info.lastInsertRowid, title, presentation: final_presentation, type, question });
+        INSERT INTO bmlt_case_studies (title, presentation, type, question, option_a, option_b, option_c, option_d, correct_option, correct_guidelines, normal_params)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(title, final_presentation, type, question, a || null, b || null, c || null, d || null, final_correct_option, final_correct_guidelines, final_normal_params);
+      res.json({ id: info.lastInsertRowid, title, presentation: final_presentation, type, question, normalParams: final_normal_params });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to create BMLT case study' });
     }
@@ -3325,7 +3332,8 @@ User's described mood: "${mood}"
     const { 
       title, presentation, scenario, type, question, 
       option_a, option_b, option_c, option_d, options,
-      correct_option, correct, correct_guidelines, explanation 
+      correct_option, correct, correct_guidelines, explanation,
+      normalParams, normal_params
     } = req.body;
     
     const final_presentation = presentation || scenario;
@@ -3362,13 +3370,14 @@ User's described mood: "${mood}"
     }
 
     const final_correct_guidelines = type === 'paragraph' ? (correct_guidelines || explanation || correct || null) : null;
+    const final_normal_params = normalParams !== undefined ? normalParams : (normal_params !== undefined ? normal_params : null);
 
     try {
       db.prepare(`
         UPDATE bmlt_case_studies 
-        SET title = ?, presentation = ?, type = ?, question = ?, option_a = ?, option_b = ?, option_c = ?, option_d = ?, correct_option = ?, correct_guidelines = ?
+        SET title = ?, presentation = ?, type = ?, question = ?, option_a = ?, option_b = ?, option_c = ?, option_d = ?, correct_option = ?, correct_guidelines = ?, normal_params = ?
         WHERE id = ?
-      `).run(title, final_presentation, type, question, a || null, b || null, c || null, d || null, final_correct_option, final_correct_guidelines, req.params.id);
+      `).run(title, final_presentation, type, question, a || null, b || null, c || null, d || null, final_correct_option, final_correct_guidelines, final_normal_params, req.params.id);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to update BMLT case study' });
