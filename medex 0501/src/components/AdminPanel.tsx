@@ -308,6 +308,11 @@ export function AdminPanel() {
   });
 
   const [isSavingLibraryItem, setIsSavingLibraryItem] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<any | null>(null);
+  const [editingTopic, setEditingTopic] = useState<any | null>(null);
+  const [editingArticle, setEditingArticle] = useState<any | null>(null);
+  const [editingBook, setEditingBook] = useState<any | null>(null);
+  const [editingBookDoc, setEditingBookDoc] = useState<any | null>(null);
 
   const loadLibraryAdminData = async () => {
     try {
@@ -364,17 +369,21 @@ export function AdminPanel() {
     }
     setIsSavingLibraryItem(true);
     try {
-      const res = await authenticatedFetch('/api/content/subjects', {
-        method: 'POST',
+      const isEdit = editingSubject !== null;
+      const url = isEdit ? `/api/content/subjects/${editingSubject.id}` : '/api/content/subjects';
+      const method = isEdit ? 'PUT' : 'POST';
+      const res = await authenticatedFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSubjectForm)
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to create subject department');
+        throw new Error(data.error || 'Failed to save subject department');
       }
-      showNotification('Subject Department added successfully!', 'success');
+      showNotification(isEdit ? 'Subject Department updated successfully!' : 'Subject Department added successfully!', 'success');
       setNewSubjectForm({ name: '', logo: 'BookOpen' });
+      setEditingSubject(null);
       loadLibraryAdminData();
     } catch (err: any) {
       showNotification(err.message || 'Error occurred', 'error');
@@ -393,6 +402,7 @@ export function AdminPanel() {
       showNotification('Subject department deleted successfully', 'success');
       setSelectedLibSubjectId('');
       setSelectedLibTopicId('');
+      setEditingSubject(null);
       loadLibraryAdminData();
     } catch (err: any) {
       showNotification(err.message, 'error');
@@ -402,26 +412,36 @@ export function AdminPanel() {
   const handleSaveTopic = async (e: React.FormEvent) => {
     e.preventDefault();
     const subId = selectedLibSubjectId || newTopicForm.subject_id;
-    if (!newTopicForm.name || !subId) {
+    const isEdit = editingTopic !== null;
+    if (!newTopicForm.name || (!isEdit && !subId)) {
       showNotification('Topic name and parent Subject Department are required', 'error');
       return;
     }
     setIsSavingLibraryItem(true);
     try {
-      const res = await authenticatedFetch('/api/content/topics', {
-        method: 'POST',
+      const url = isEdit ? `/api/content/topics/${editingTopic.id}` : '/api/content/topics';
+      const method = isEdit ? 'PUT' : 'POST';
+      const bodyObj = isEdit 
+        ? { name: newTopicForm.name }
+        : { name: newTopicForm.name, subject_id: parseInt(subId) };
+
+      const res = await authenticatedFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newTopicForm.name, subject_id: parseInt(subId) })
+        body: JSON.stringify(bodyObj)
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to create unit topic');
+        throw new Error(data.error || 'Failed to save unit topic');
       }
-      showNotification('Syllabus unit topic added successfully!', 'success');
+      showNotification(isEdit ? 'Syllabus unit topic updated successfully!' : 'Syllabus unit topic added successfully!', 'success');
       setNewTopicForm({ name: '', subject_id: '' });
+      setEditingTopic(null);
       // Reload topics
-      const topicRes = await fetch(`/api/content/subjects/${subId}/topics`);
-      if (topicRes.ok) setLibTopics(await topicRes.json());
+      if (subId) {
+        const topicRes = await fetch(`/api/content/subjects/${subId}/topics`);
+        if (topicRes.ok) setLibTopics(await topicRes.json());
+      }
       loadLibraryAdminData();
     } catch (err: any) {
       showNotification(err.message, 'error');
@@ -439,6 +459,7 @@ export function AdminPanel() {
       if (!res.ok) throw new Error('Failed to delete topic');
       showNotification('Syllabus topic deleted successfully', 'success');
       setSelectedLibTopicId('');
+      setEditingTopic(null);
       if (selectedLibSubjectId) {
         const topicRes = await fetch(`/api/content/subjects/${selectedLibSubjectId}/topics`);
         if (topicRes.ok) setLibTopics(await topicRes.json());
@@ -451,27 +472,33 @@ export function AdminPanel() {
 
   const handleSaveArticle = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newArticleForm.headline || !selectedLibSubjectId) {
+    const isEdit = editingArticle !== null;
+    if (!newArticleForm.headline || (!isEdit && !selectedLibSubjectId)) {
       showNotification('Headline and Parent Subject are required', 'error');
       return;
     }
     setIsSavingLibraryItem(true);
     try {
+      const url = isEdit ? `/api/content/articles/${editingArticle.id}` : '/api/content/articles';
+      const method = isEdit ? 'PUT' : 'POST';
+
       if (newArticleForm.file) {
         const formData = new FormData();
         formData.append('file', newArticleForm.file);
-        formData.append('subjectId', selectedLibSubjectId);
+        if (!isEdit && selectedLibSubjectId) {
+          formData.append('subjectId', selectedLibSubjectId);
+        }
         formData.append('section', newArticleForm.section || 'textbook');
         formData.append('headline', newArticleForm.headline);
         formData.append('author_name', newArticleForm.author_name || 'Academic Scholar');
         formData.append('allow_download', String(newArticleForm.allow_download));
-        if (selectedLibTopicId) {
+        if (!isEdit && selectedLibTopicId) {
           formData.append('topicId', selectedLibTopicId);
         }
 
         const token = localStorage.getItem('admin_token');
-        const res = await fetch('/api/content/articles/upload-document', {
-          method: 'POST',
+        const res = await fetch(url, {
+          method,
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           body: formData
         });
@@ -480,18 +507,26 @@ export function AdminPanel() {
           throw new Error(data.error || 'Failed to upload lecture notes document');
         }
       } else {
-        const res = await authenticatedFetch('/api/content/articles', {
-          method: 'POST',
+        const bodyPayload: any = {
+          section: newArticleForm.section || 'textbook',
+          headline: newArticleForm.headline,
+          content: newArticleForm.content || 'Standard Textbook Note',
+          author_name: newArticleForm.author_name || 'Academic Scholar',
+          allow_download: newArticleForm.allow_download
+        };
+        if (!isEdit) {
+          bodyPayload.subject_id = parseInt(selectedLibSubjectId);
+          if (selectedLibTopicId) {
+            bodyPayload.topic_id = parseInt(selectedLibTopicId);
+          }
+        } else {
+          bodyPayload.file_path = editingArticle.file_path || null;
+        }
+
+        const res = await authenticatedFetch(url, {
+          method,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            subject_id: parseInt(selectedLibSubjectId),
-            topic_id: selectedLibTopicId ? parseInt(selectedLibTopicId) : null,
-            section: newArticleForm.section || 'textbook',
-            headline: newArticleForm.headline,
-            content: newArticleForm.content || 'Standard Textbook Note',
-            author_name: newArticleForm.author_name || 'Academic Scholar',
-            allow_download: newArticleForm.allow_download
-          })
+          body: JSON.stringify(bodyPayload)
         });
         const data = await res.json();
         if (!res.ok || data.error) {
@@ -499,9 +534,9 @@ export function AdminPanel() {
         }
       }
 
-      showNotification('Lecture notes/file published successfully!', 'success');
+      showNotification(isEdit ? 'Lecture notes updated successfully!' : 'Lecture notes published successfully!', 'success');
       setNewArticleForm({ headline: '', content: '', author_name: '', section: 'textbook', file: null, allow_download: 1 });
-      // Reset file input element explicitly if needed
+      setEditingArticle(null);
       const fileInput = document.getElementById('lib-article-file-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
       loadLibraryAdminData();
@@ -519,7 +554,8 @@ export function AdminPanel() {
         method: 'DELETE'
       });
       if (!res.ok) throw new Error('Failed to delete lecture notes');
-      showNotification('Lecture notes/file entry deleted successfully', 'success');
+      showNotification('Lecture notes deleted successfully', 'success');
+      setEditingArticle(null);
       loadLibraryAdminData();
     } catch (err: any) {
       showNotification(err.message, 'error');
@@ -534,8 +570,11 @@ export function AdminPanel() {
     }
     setIsSavingLibraryItem(true);
     try {
-      const res = await authenticatedFetch('/api/books', {
-        method: 'POST',
+      const isEdit = editingBook !== null;
+      const url = isEdit ? `/api/books/${editingBook.id}` : '/api/books';
+      const method = isEdit ? 'PUT' : 'POST';
+      const res = await authenticatedFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newBookForm)
       });
@@ -543,8 +582,9 @@ export function AdminPanel() {
       if (!res.ok || data.error) {
         throw new Error(data.error || 'Failed to save reference book');
       }
-      showNotification('Reference book volume created successfully!', 'success');
+      showNotification(isEdit ? 'Reference book updated successfully!' : 'Reference book created successfully!', 'success');
       setNewBookForm({ title: '', author_name: 'BMLT Director', cover_color: 'teal', allow_download: 1 });
+      setEditingBook(null);
       loadLibraryAdminData();
     } catch (err: any) {
       showNotification(err.message, 'error');
@@ -562,6 +602,7 @@ export function AdminPanel() {
       if (!res.ok) throw new Error('Failed to delete reference book');
       showNotification('Reference book deleted successfully', 'success');
       setSelectedLibBookId('');
+      setEditingBook(null);
       loadLibraryAdminData();
     } catch (err: any) {
       showNotification(err.message, 'error');
@@ -570,30 +611,44 @@ export function AdminPanel() {
 
   const handleSaveBookDoc = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLibBookId || !newBookDocForm.file) {
+    const isEdit = editingBookDoc !== null;
+    if (!isEdit && (!selectedLibBookId || !newBookDocForm.file)) {
       showNotification('Please select a parent Reference Book and choose a PDF/Word file to upload.', 'error');
+      return;
+    }
+    if (isEdit && !newBookDocForm.title) {
+      showNotification('Chapter title is required.', 'error');
       return;
     }
     setIsSavingLibraryItem(true);
     try {
+      const url = isEdit ? `/api/books/documents/${editingBookDoc.id}` : `/api/books/${selectedLibBookId}/documents/upload`;
+      const method = isEdit ? 'PUT' : 'POST';
+      
       const formData = new FormData();
-      formData.append('file', newBookDocForm.file);
-      formData.append('title', newBookDocForm.title || newBookDocForm.file.name);
+      if (newBookDocForm.file) {
+        formData.append('file', newBookDocForm.file);
+      }
+      formData.append('title', newBookDocForm.title || (newBookDocForm.file ? newBookDocForm.file.name : ''));
       formData.append('author_name', newBookDocForm.author_name || 'BMLT Scholar');
       formData.append('allow_download', String(newBookDocForm.allow_download !== undefined ? newBookDocForm.allow_download : 1));
+      if (isEdit) {
+        formData.append('file_path', editingBookDoc.file_path || '');
+      }
 
       const token = localStorage.getItem('admin_token');
-      const res = await fetch(`/api/books/${selectedLibBookId}/documents/upload`, {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: formData
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to upload chapter file');
+        throw new Error(data.error || 'Failed to save chapter file');
       }
-      showNotification('Book document chapter uploaded successfully!', 'success');
+      showNotification(isEdit ? 'Book chapter updated successfully!' : 'Book chapter uploaded successfully!', 'success');
       setNewBookDocForm({ title: '', author_name: 'BMLT Scholar', file: null, allow_download: 1 });
+      setEditingBookDoc(null);
       const docInput = document.getElementById('lib-bookdoc-file-input') as HTMLInputElement;
       if (docInput) docInput.value = '';
       loadLibraryAdminData();
@@ -3499,7 +3554,19 @@ export function AdminPanel() {
                 <button
                   type="button"
                   key={sec.id}
-                  onClick={() => setLibraryManageSection(sec.id as any)}
+                  onClick={() => {
+                    setLibraryManageSection(sec.id as any);
+                    setEditingSubject(null);
+                    setEditingTopic(null);
+                    setEditingArticle(null);
+                    setEditingBook(null);
+                    setEditingBookDoc(null);
+                    setNewSubjectForm({ name: '', logo: 'BookOpen' });
+                    setNewTopicForm({ name: '', subject_id: '' });
+                    setNewArticleForm({ headline: '', content: '', author_name: '', section: 'textbook', file: null, allow_download: 1 });
+                    setNewBookForm({ title: '', author_name: 'BMLT Director', cover_color: 'teal', allow_download: 1 });
+                    setNewBookDocForm({ title: '', author_name: 'BMLT Scholar', file: null, allow_download: 1 });
+                  }}
                   className={cn(
                     "p-4 rounded-2xl flex flex-col items-center justify-center text-center border transition-all shadow-sm relative overflow-hidden",
                     isActive 
@@ -3533,7 +3600,8 @@ export function AdminPanel() {
                   {/* Left: Add Form */}
                   <div className="bg-zinc-50 p-6 rounded-[2rem] border border-zinc-200">
                     <h4 className="text-sm font-black uppercase tracking-wider text-rose-800 mb-4 flex items-center gap-2">
-                      <Plus size={16} /> Add New Department/Subject
+                      {editingSubject ? <Edit size={16} /> : <Plus size={16} />}
+                      {editingSubject ? 'Edit Department/Subject' : 'Add New Department/Subject'}
                     </h4>
                     <form onSubmit={handleSaveSubject} className="space-y-4">
                       <div className="space-y-1">
@@ -3561,13 +3629,27 @@ export function AdminPanel() {
                           <option value="Layers">🥞 Stack Layers</option>
                         </select>
                       </div>
-                      <button
-                        type="submit"
-                        disabled={isSavingLibraryItem}
-                        className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all"
-                      >
-                        {isSavingLibraryItem ? 'Saving...' : 'Add Subject Department'}
-                      </button>
+                      <div className="flex gap-2">
+                        {editingSubject && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSubject(null);
+                              setNewSubjectForm({ name: '', logo: 'BookOpen' });
+                            }}
+                            className="flex-1 py-3.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={isSavingLibraryItem}
+                          className="flex-[2] py-3.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                        >
+                          {isSavingLibraryItem ? 'Saving...' : editingSubject ? 'Save Changes' : 'Add Subject Department'}
+                        </button>
+                      </div>
                     </form>
                   </div>
 
@@ -3582,7 +3664,7 @@ export function AdminPanel() {
                       ) : (
                         libSubjects.map(sub => (
                           <div key={sub.id} className="p-4 md:px-6 flex items-center justify-between hover:bg-zinc-50 transition-colors">
-                            <div className="flex items-center gap-3">
+                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 bg-rose-50 border border-rose-100 text-rose-600 rounded-xl flex items-center justify-center">
                                 {sub.logo === 'Beaker' ? <Beaker size={20} /> : sub.logo === 'Activity' ? <Activity size={20} /> : sub.logo === 'Layers' ? <Layers size={20} /> : <BookOpen size={20} />}
                               </div>
@@ -3591,15 +3673,27 @@ export function AdminPanel() {
                                 <span className="text-[10px] text-zinc-400 font-medium">Recorded: {new Date(sub.created_at).toLocaleDateString()}</span>
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteSubject(sub.id)}
-                              className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              title="Delete Department"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingSubject(sub);
+                                  setNewSubjectForm({ name: sub.name, logo: sub.logo || 'BookOpen' });
+                                }}
+                                className="p-2 text-zinc-450 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                                title="Edit Department"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSubject(sub.id)}
+                                className="p-2 text-zinc-405 hover:text-red-655 hover:bg-red-50 rounded-lg transition-all"
+                                title="Delete Department"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                         ))
                       )}
                     </div>
@@ -3613,16 +3707,18 @@ export function AdminPanel() {
                   {/* Left: Add Form */}
                   <div className="bg-zinc-50 p-6 rounded-[2rem] border border-zinc-200">
                     <h4 className="text-sm font-black uppercase tracking-wider text-indigo-800 mb-4 flex items-center gap-2">
-                      <Plus size={16} /> Add Syllabus Unit Topic
+                      {editingTopic ? <Edit size={16} /> : <Plus size={16} />}
+                      {editingTopic ? 'Edit Syllabus Unit Topic' : 'Add Syllabus Unit Topic'}
                     </h4>
                     <form onSubmit={handleSaveTopic} className="space-y-4">
                       <div className="space-y-1">
                         <label className="text-xs font-black text-zinc-500 uppercase ml-1">Parent Department *</label>
                         <select
                           required
+                          disabled={editingTopic !== null}
                           value={selectedLibSubjectId}
                           onChange={e => setSelectedLibSubjectId(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm"
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm disabled:opacity-50"
                         >
                           <option value="">-- Choose a Department --</option>
                           {libSubjects.map(sub => (
@@ -3641,13 +3737,27 @@ export function AdminPanel() {
                           className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white shadow-sm"
                         />
                       </div>
-                      <button
-                        type="submit"
-                        disabled={isSavingLibraryItem}
-                        className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all"
-                      >
-                        {isSavingLibraryItem ? 'Saving...' : 'Add Syllabus Topic'}
-                      </button>
+                      <div className="flex gap-2">
+                        {editingTopic && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingTopic(null);
+                              setNewTopicForm({ name: '', subject_id: '' });
+                            }}
+                            className="flex-1 py-3.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={isSavingLibraryItem}
+                          className="flex-[2] py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                        >
+                          {isSavingLibraryItem ? 'Saving...' : editingTopic ? 'Save Changes' : 'Add Syllabus Topic'}
+                        </button>
+                      </div>
                     </form>
                   </div>
 
@@ -3681,14 +3791,27 @@ export function AdminPanel() {
                                   <h5 className="font-bold text-zinc-950 text-sm">{top.name}</h5>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTopic(top.id)}
-                                className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingTopic(top);
+                                    setNewTopicForm({ name: top.name, subject_id: top.subject_id.toString() });
+                                    setSelectedLibSubjectId(top.subject_id.toString());
+                                  }}
+                                  className="p-2 text-zinc-450 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                  title="Edit Topic"
+                                >
+                                  <Edit size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTopic(top.id)}
+                                  className="p-2 text-zinc-405 hover:text-red-655 hover:bg-red-50 rounded-lg transition-all"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
                           ))
                         )}
                       </div>
@@ -3703,19 +3826,21 @@ export function AdminPanel() {
                   {/* Left: Add Form */}
                   <div className="bg-zinc-50 p-6 rounded-[2rem] border border-zinc-200">
                     <h4 className="text-sm font-black uppercase tracking-wider text-teal-800 mb-4 flex items-center gap-2">
-                      <Plus size={16} /> Publish Lecture Note / Document
+                      {editingArticle ? <Edit size={16} /> : <Plus size={16} />}
+                      {editingArticle ? 'Edit Lecture Note / Document' : 'Publish Lecture Note / Document'}
                     </h4>
                     <form onSubmit={handleSaveArticle} className="space-y-4">
                       <div className="space-y-1">
                         <label className="text-xs font-black text-zinc-500 uppercase ml-1">Subject Department *</label>
                         <select
                           required
+                          disabled={editingArticle !== null}
                           value={selectedLibSubjectId}
                           onChange={e => {
                             setSelectedLibSubjectId(e.target.value);
                             setSelectedLibTopicId('');
                           }}
-                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm"
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm disabled:opacity-50"
                         >
                           <option value="">-- Choose Department --</option>
                           {libSubjects.map(sub => (
@@ -3727,9 +3852,10 @@ export function AdminPanel() {
                       <div className="space-y-1">
                         <label className="text-xs font-black text-zinc-500 uppercase ml-1">Syllabus Topic Unit (Optional)</label>
                         <select
+                          disabled={editingArticle !== null}
                           value={selectedLibTopicId}
                           onChange={e => setSelectedLibTopicId(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm"
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm disabled:opacity-50"
                         >
                           <option value="">-- Choose Unit Topic --</option>
                           {libTopics.map(top => (
@@ -3784,7 +3910,7 @@ export function AdminPanel() {
                             const file = e.target.files?.[0] || null;
                             setNewArticleForm({ ...newArticleForm, file });
                           }}
-                          className="text-xs text-zinc-600 block w-full file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
+                          className="text-xs text-zinc-650 block w-full file:mr-2 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
                         />
                         <p className="text-[10px] text-zinc-400 italic mt-1">Optional. If chosen, readers will load the file via our secure viewer with full zoom controls.</p>
                       </div>
@@ -3814,13 +3940,29 @@ export function AdminPanel() {
                         </label>
                       </div>
 
-                      <button
-                        type="submit"
-                        disabled={isSavingLibraryItem}
-                        className="w-full py-4 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-md"
-                      >
-                        {isSavingLibraryItem ? 'Publishing...' : 'Publish College Lecture Note'}
-                      </button>
+                      <div className="flex gap-2">
+                        {editingArticle && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingArticle(null);
+                              setNewArticleForm({ headline: '', content: '', author_name: '', section: 'textbook', file: null, allow_download: 1 });
+                              const fileInput = document.getElementById('lib-article-file-input') as HTMLInputElement;
+                              if (fileInput) fileInput.value = '';
+                            }}
+                            className="flex-1 py-4 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={isSavingLibraryItem}
+                          className="flex-[2] py-4 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-md"
+                        >
+                          {isSavingLibraryItem ? 'Publishing...' : editingArticle ? 'Save Changes' : 'Publish College Lecture Note'}
+                        </button>
+                      </div>
                     </form>
                   </div>
 
@@ -3863,14 +4005,43 @@ export function AdminPanel() {
                                   </div>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteArticle(art.id)}
-                                className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch(`/api/content/articles/${art.id}`);
+                                      if (res.ok) {
+                                        const fullArt = await res.json();
+                                        setEditingArticle(fullArt);
+                                        setNewArticleForm({
+                                          headline: fullArt.headline,
+                                          content: fullArt.content || '',
+                                          author_name: fullArt.author_name || '',
+                                          section: fullArt.section || 'textbook',
+                                          file: null,
+                                          allow_download: fullArt.allow_download !== 0 ? 1 : 0
+                                        });
+                                        setSelectedLibSubjectId(fullArt.subject_id ? fullArt.subject_id.toString() : '');
+                                        setSelectedLibTopicId(fullArt.topic_id ? fullArt.topic_id.toString() : '');
+                                      }
+                                    } catch (err) {
+                                      showNotification('Failed to fetch note details', 'error');
+                                    }
+                                  }}
+                                  className="p-2 text-zinc-400 hover:text-teal-650 hover:bg-teal-50 rounded-lg transition-all"
+                                  title="Edit Note"
+                                >
+                                  <Edit size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteArticle(art.id)}
+                                  className="p-2 text-zinc-405 hover:text-red-655 hover:bg-red-50 rounded-lg transition-all"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>                          </div>
                           );
                         })
                       )}
@@ -3885,7 +4056,8 @@ export function AdminPanel() {
                   {/* Left: Add Form */}
                   <div className="bg-zinc-50 p-6 rounded-[2rem] border border-zinc-200">
                     <h4 className="text-sm font-black uppercase tracking-wider text-amber-800 mb-4 flex items-center gap-2">
-                      <Plus size={16} /> Volume Registry (Book)
+                      {editingBook ? <Edit size={16} /> : <Plus size={16} />}
+                      {editingBook ? 'Edit Reference Book' : 'Volume Registry (Book)'}
                     </h4>
                     <form onSubmit={handleSaveBook} className="space-y-4">
                       <div className="space-y-1">
@@ -3940,13 +4112,27 @@ export function AdminPanel() {
                         </label>
                       </div>
 
-                      <button
-                        type="submit"
-                        disabled={isSavingLibraryItem}
-                        className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all"
-                      >
-                        {isSavingLibraryItem ? 'Saving...' : 'Register Reference Book'}
-                      </button>
+                      <div className="flex gap-2">
+                        {editingBook && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingBook(null);
+                              setNewBookForm({ title: '', author_name: 'BMLT Director', cover_color: 'teal', allow_download: 1 });
+                            }}
+                            className="flex-1 py-3.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={isSavingLibraryItem}
+                          className="flex-[2] py-3.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                        >
+                          {isSavingLibraryItem ? 'Saving...' : editingBook ? 'Save Changes' : 'Register Reference Book'}
+                        </button>
+                      </div>
                     </form>
                   </div>
 
@@ -3977,14 +4163,31 @@ export function AdminPanel() {
                                 <span className="text-[10px] text-zinc-400 font-medium font-sans">By {bk.author_name}</span>
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteBook(bk.id)}
-                              className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingBook(bk);
+                                  setNewBookForm({
+                                    title: bk.title,
+                                    author_name: bk.author_name || 'BMLT Director',
+                                    cover_color: bk.cover_color || 'teal',
+                                    allow_download: bk.allow_download !== 0 ? 1 : 0
+                                  });
+                                }}
+                                className="p-2 text-zinc-455 hover:text-amber-650 hover:bg-amber-50 rounded-lg transition-all"
+                                title="Edit Book"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBook(bk.id)}
+                                className="p-2 text-zinc-405 hover:text-red-655 hover:bg-red-50 rounded-lg transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                         ))
                       )}
                     </div>
@@ -3998,16 +4201,18 @@ export function AdminPanel() {
                   {/* Left: Add Form */}
                   <div className="bg-zinc-50 p-6 rounded-[2rem] border border-zinc-200">
                     <h4 className="text-sm font-black uppercase tracking-wider text-violet-800 mb-4 flex items-center gap-2">
-                      <Plus size={16} /> Upload Book Chapter PDF
+                      {editingBookDoc ? <Edit size={16} /> : <Plus size={16} />}
+                      {editingBookDoc ? 'Edit Book Chapter' : 'Upload Book Chapter PDF'}
                     </h4>
                     <form onSubmit={handleSaveBookDoc} className="space-y-4">
                       <div className="space-y-1">
                         <label className="text-xs font-black text-zinc-500 uppercase ml-1">Select Reference Book *</label>
                         <select
                           required
+                          disabled={editingBookDoc !== null}
                           value={selectedLibBookId}
                           onChange={e => setSelectedLibBookId(e.target.value)}
-                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm"
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm disabled:opacity-50"
                         >
                           <option value="">-- Choose Reference Book --</option>
                           {libBooks.map(bk => (
@@ -4039,9 +4244,11 @@ export function AdminPanel() {
                       </div>
 
                       <div className="space-y-2 bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
-                        <label className="text-xs font-black text-zinc-500 uppercase block mb-1">Upload Chapter PDF *</label>
+                        <label className="text-xs font-black text-zinc-500 uppercase block mb-1">
+                          Upload Chapter PDF {editingBookDoc ? '(Optional)' : '*'}
+                        </label>
                         <input 
-                          required
+                          required={editingBookDoc === null}
                           type="file"
                           id="lib-bookdoc-file-input"
                           accept=".pdf,.docx,.doc"
@@ -4066,13 +4273,29 @@ export function AdminPanel() {
                         </label>
                       </div>
 
-                      <button
-                        type="submit"
-                        disabled={isSavingLibraryItem}
-                        className="w-full py-4 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-md"
-                      >
-                        {isSavingLibraryItem ? 'Uploading File...' : 'Upload Chapter To Book'}
-                      </button>
+                      <div className="flex gap-2">
+                        {editingBookDoc && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingBookDoc(null);
+                              setNewBookDocForm({ title: '', author_name: 'BMLT Scholar', file: null, allow_download: 1 });
+                              const docInput = document.getElementById('lib-bookdoc-file-input') as HTMLInputElement;
+                              if (docInput) docInput.value = '';
+                            }}
+                            className="flex-1 py-4 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={isSavingLibraryItem}
+                          className="flex-[2] py-4 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-md"
+                        >
+                          {isSavingLibraryItem ? 'Saving...' : editingBookDoc ? 'Save Changes' : 'Upload Chapter To Book'}
+                        </button>
+                      </div>
                     </form>
                   </div>
 
@@ -4111,14 +4334,32 @@ export function AdminPanel() {
                                     </div>
                                   </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteBookDoc(doc.id)}
-                                  className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingBookDoc(doc);
+                                      setNewBookDocForm({
+                                        title: doc.title,
+                                        author_name: doc.author_name || 'BMLT Scholar',
+                                        file: null,
+                                        allow_download: doc.allow_download !== 0 ? 1 : 0
+                                      });
+                                      setSelectedLibBookId(doc.book_id ? doc.book_id.toString() : '');
+                                    }}
+                                    className="p-2 text-zinc-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-all"
+                                    title="Edit Chapter"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteBookDoc(doc.id)}
+                                    className="p-2 text-zinc-405 hover:text-red-655 hover:bg-red-50 rounded-lg transition-all"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
                             );
                           })
                       )}
