@@ -3694,6 +3694,7 @@ export function AdminPanel() {
                                 <Trash2 size={16} />
                               </button>
                             </div>
+                          </div>
                         ))
                       )}
                     </div>
