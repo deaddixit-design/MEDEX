@@ -190,6 +190,7 @@ export function BmltHub() {
     setCaseOptD(cs.option_d || '');
     setCaseCorrectOption(cs.correct_option || 'A');
     setCaseGuidelines(cs.correct_guidelines || '');
+    setCaseNormalParams(cs.normalParams || cs.normal_params || '');
     setShowCaseForm(true);
   };
 
@@ -214,6 +215,7 @@ export function BmltHub() {
   const [caseOptD, setCaseOptD] = useState<string>('');
   const [caseCorrectOption, setCaseCorrectOption] = useState<string>('A');
   const [caseGuidelines, setCaseGuidelines] = useState<string>('');
+  const [caseNormalParams, setCaseNormalParams] = useState<string>('');
 
   // Practice MCQs UI State
   const [practiceMcqIndex, setPracticeMcqIndex] = useState<number>(0);
@@ -490,7 +492,8 @@ export function BmltHub() {
       option_c: caseType === 'mcq' ? caseOptC : null,
       option_d: caseType === 'mcq' ? caseOptD : null,
       correct_option: caseType === 'mcq' ? caseCorrectOption : null,
-      correct_guidelines: caseType === 'paragraph' ? caseGuidelines : null
+      correct_guidelines: caseType === 'paragraph' ? caseGuidelines : null,
+      normalParams: caseNormalParams
     };
 
     try {
@@ -516,6 +519,7 @@ export function BmltHub() {
         setCaseOptD('');
         setCaseCorrectOption('A');
         setCaseGuidelines('');
+        setCaseNormalParams('');
       } else {
         alert("Failed to save patient case study.");
       }
@@ -1217,6 +1221,7 @@ export function BmltHub() {
                     setCaseOptD('');
                     setCaseCorrectOption('A');
                     setCaseGuidelines('');
+                    setCaseNormalParams('');
                     setShowCaseForm(!showCaseForm);
                   }}
                   className="px-4 py-2 bg-indigo-650 hover:bg-zinc-900 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow"
@@ -1287,6 +1292,18 @@ export function BmltHub() {
                         placeholder="e.g., A 45-year-old cyclist presents with dark tea-colored urine, clay-colored stools, and pale sclera. Serum bilirubin checks point to massive conjugated..."
                         rows={3}
                         className="w-full px-3.5 py-2 border border-zinc-200 rounded-xl bg-white text-xs sm:text-sm font-medium text-zinc-800 outline-none focus:border-black resize-none"
+                      />
+                    </div>
+
+                    {/* Laboratory Reports & Findings */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-black text-zinc-500 uppercase tracking-wide">Laboratory Reports & Findings (Hb, WBCs, etc.)</label>
+                      <textarea
+                        value={caseNormalParams}
+                        onChange={(e) => setCaseNormalParams(e.target.value)}
+                        placeholder="e.g. Hb: 8.5 g/dL (low), MCV: 70 fL (low), Serum Iron: 25 mcg/dL (low)"
+                        rows={2}
+                        className="w-full px-3.5 py-2 border border-zinc-200 rounded-xl bg-white text-xs sm:text-sm font-semibold text-zinc-800 outline-none focus:border-black resize-none"
                       />
                     </div>
 
@@ -1383,7 +1400,7 @@ export function BmltHub() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setShowCaseForm(false); setEditingCase(null); }}
+                        onClick={() => { setShowCaseForm(false); setEditingCase(null); setCaseNormalParams(''); }}
                         className="px-4 py-2 bg-white hover:bg-zinc-100 border border-zinc-250 text-zinc-650 rounded-xl text-xs font-bold"
                       >
                         Cancel
@@ -1515,8 +1532,8 @@ export function BmltHub() {
                             <div className="text-zinc-800 text-xs sm:text-sm leading-relaxed font-semibold">
                               Diagnostic parameters have been parsed. Evaluate the Core Question below to form your diagnostic hypothesis.
                             </div>
-                            <div className="text-[10.5px] text-zinc-600 font-medium">
-                              Biomarkers checked: Standard Hb levels, Serum Creatinine profile normal, Bilirubin assay outputs completed.
+                            <div className="text-[10.5px] text-zinc-650 font-semibold font-mono whitespace-pre-line bg-white/70 p-2.5 rounded-xl border border-emerald-100/30">
+                              {activeCase.normalParams || activeCase.normal_params || 'Biomarkers checked: Standard Hb levels, Serum Creatinine profile normal, Bilirubin assay outputs completed.'}
                             </div>
                           </div>
                         </div>
