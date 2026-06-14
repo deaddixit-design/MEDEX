@@ -3446,7 +3446,14 @@ User's described mood: "${mood}"
   app.get('/api/bmlt/lab-params', (req, res) => {
     try {
       const params = db.prepare('SELECT * FROM bmlt_lab_params ORDER BY id ASC').all();
-      res.json(params);
+      const mapped = params.map((p: any) => ({
+        ...p,
+        normalMinMale: p.normal_min_male,
+        normalMaxMale: p.normal_max_male,
+        normalMinFemale: p.normal_min_female,
+        normalMaxFemale: p.normal_max_female
+      }));
+      res.json(mapped);
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to fetch BMLT laboratory parameters' });
     }
