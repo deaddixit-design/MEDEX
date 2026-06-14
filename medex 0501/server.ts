@@ -1998,14 +1998,35 @@ async function startServer() {
     }
   });
 
-  app.put('/api/books/documents/:id', requireAdmin, (req: any, res: any) => {
-    const { title, author_name, allow_download } = req.body;
+  app.put('/api/books/documents/:id', requireAdmin, upload.single('file'), (req: any, res: any) => {
+    const { title, author_name, allow_download, file_path } = req.body;
     if (!title) return res.status(400).json({ error: 'Title is required' });
     const isDownloadable = allow_download !== undefined ? Number(allow_download) : 1;
+    let resolvedFilePath = file_path || null;
+
+    if (req.file) {
+      const fileExt = path.extname(req.file.originalname).toLowerCase();
+      const sanitizedBase = path.basename(req.file.originalname, fileExt).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const uniqueFilename = `${Date.now()}-${sanitizedBase}${fileExt}`;
+      const destinationPath = path.join(uploadDir, uniqueFilename);
+      try {
+        fs.renameSync(req.file.path, destinationPath);
+      } catch (renameErr) {
+        fs.copyFileSync(req.file.path, destinationPath);
+        fs.unlinkSync(req.file.path);
+      }
+      resolvedFilePath = `/uploads/${uniqueFilename}`;
+    }
+
     try {
-      db.prepare('UPDATE book_documents SET title = ?, author_name = ?, allow_download = ? WHERE id = ?')
-        .run(title, author_name || 'BMLT Scholar', isDownloadable, req.params.id);
-      res.json({ success: true });
+      if (resolvedFilePath) {
+        db.prepare('UPDATE book_documents SET title = ?, author_name = ?, allow_download = ?, file_path = ? WHERE id = ?')
+          .run(title, author_name || 'BMLT Scholar', isDownloadable, resolvedFilePath, req.params.id);
+      } else {
+        db.prepare('UPDATE book_documents SET title = ?, author_name = ?, allow_download = ? WHERE id = ?')
+          .run(title, author_name || 'BMLT Scholar', isDownloadable, req.params.id);
+      }
+      res.json({ success: true, file_path: resolvedFilePath });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to update book document' });
     }
@@ -2306,16 +2327,34 @@ async function startServer() {
     }
   });
 
-  app.put('/api/content/articles/:id', (req, res) => {
+  app.put('/api/content/articles/:id', upload.single('file'), (req: any, res: any) => {
     const { headline, content, author_name, section, file_path, allow_download } = req.body;
-    if (!headline || !content || !author_name) {
-      return res.status(400).json({ error: 'Missing headline, content, or author_name' });
+    if (!headline || !author_name) {
+      return res.status(400).json({ error: 'Missing headline or author_name' });
     }
     const isDownloadable = allow_download !== undefined ? Number(allow_download) : 1;
+    let resolvedFilePath = file_path || null;
+    let resolvedContent = content || '';
+
+    if (req.file) {
+      const fileExt = path.extname(req.file.originalname).toLowerCase();
+      const sanitizedBase = path.basename(req.file.originalname, fileExt).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const uniqueFilename = `${Date.now()}-${sanitizedBase}${fileExt}`;
+      const destinationPath = path.join(uploadDir, uniqueFilename);
+      try {
+        fs.renameSync(req.file.path, destinationPath);
+      } catch (renameErr) {
+        fs.copyFileSync(req.file.path, destinationPath);
+        fs.unlinkSync(req.file.path);
+      }
+      resolvedFilePath = `/uploads/${uniqueFilename}`;
+      resolvedContent = `Document Attachment: ${req.file.originalname}`;
+    }
+
     try {
       db.prepare('UPDATE content_articles SET headline = ?, content = ?, author_name = ?, section = ?, file_path = ?, allow_download = ? WHERE id = ?')
-        .run(headline, content, author_name, section || 'textbook', file_path || null, isDownloadable, req.params.id);
-      res.json({ success: true });
+        .run(headline, resolvedContent, author_name, section || 'textbook', resolvedFilePath, isDownloadable, req.params.id);
+      res.json({ success: true, file_path: resolvedFilePath });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to update article' });
     }
@@ -3063,39 +3102,119 @@ User's described mood: "${mood}"
   app.get('/api/bmlt/mcqs', (req, res) => {
     try {
       const mcqs = db.prepare('SELECT * FROM bmlt_mcqs ORDER BY id DESC').all();
-      res.json(mcqs);
+      const mapped = mcqs.map((q: any) => {
+        const parts = [];
+        if (q.option_a) parts.push(q.option_a);
+        if (q.option_b) parts.push(q.option_b);
+        if (q.option_c) parts.push(q.option_c);
+        if (q.option_d) parts.push(q.option_d);
+        const optionsStr = parts.join(', ');
+
+        let correctText = q.correct_option || '';
+        if (q.correct_option === 'A') correctText = q.option_a || 'A';
+        else if (q.correct_option === 'B') correctText = q.option_b || 'B';
+        else if (q.correct_option === 'C') correctText = q.option_c || 'C';
+        else if (q.correct_option === 'D') correctText = q.option_d || 'D';
+
+        return {
+          ...q,
+          options: optionsStr,
+          correct: correctText,
+          imageUrl: q.image_url || '',
+          explanation: q.explanation || ''
+        };
+      });
+      res.json(mapped);
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to fetch BMLT MCQs' });
     }
   });
 
   app.post('/api/bmlt/mcqs', (req, res) => {
-    const { question, option_a, option_b, option_c, option_d, correct_option, image_url, explanation } = req.body;
-    if (!question || !option_a || !option_b || !correct_option) {
+    const { question, option_a, option_b, option_c, option_d, correct_option, image_url, imageUrl, explanation, options, correct } = req.body;
+    
+    let a = option_a, b = option_b, c = option_c, d = option_d;
+    if (options && typeof options === 'string' && !a) {
+      const parts = options.split(',').map(s => s.trim());
+      a = parts[0] || '';
+      b = parts[1] || '';
+      c = parts[2] || '';
+      d = parts[3] || '';
+    }
+
+    const final_image_url = image_url || imageUrl || null;
+    
+    let final_correct = correct_option || correct || 'A';
+    const cleanCorrect = final_correct.trim().toLowerCase();
+    const optList = [a, b, c, d].filter(Boolean);
+    let matchedLetter = 'A';
+    let matched = false;
+    for (let i = 0; i < optList.length; i++) {
+      if (optList[i].trim().toLowerCase() === cleanCorrect) {
+        matchedLetter = ['A', 'B', 'C', 'D'][i];
+        matched = true;
+        break;
+      }
+    }
+    if (!matched && ['a', 'b', 'c', 'd'].includes(cleanCorrect)) {
+      matchedLetter = cleanCorrect.toUpperCase();
+    }
+    
+    if (!question || !a || !b) {
       return res.status(400).json({ error: 'Missing required MCQ fields' });
     }
+
     try {
       const info = db.prepare(`
         INSERT INTO bmlt_mcqs (question, option_a, option_b, option_c, option_d, correct_option, image_url, explanation)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(question, option_a, option_b, option_c || null, option_d || null, correct_option, image_url || null, explanation || null);
-      res.json({ id: info.lastInsertRowid, question, option_a, option_b, option_c, option_d, correct_option, image_url, explanation });
+      `).run(question, a, b, c || null, d || null, matchedLetter, final_image_url, explanation || null);
+      res.json({ id: info.lastInsertRowid, question, option_a: a, option_b: b, option_c: c, option_d: d, correct_option: matchedLetter, image_url: final_image_url, explanation });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to create BMLT MCQ' });
     }
   });
 
   app.put('/api/bmlt/mcqs/:id', (req, res) => {
-    const { question, option_a, option_b, option_c, option_d, correct_option, image_url, explanation } = req.body;
-    if (!question || !option_a || !option_b || !correct_option) {
+    const { question, option_a, option_b, option_c, option_d, correct_option, image_url, imageUrl, explanation, options, correct } = req.body;
+    
+    let a = option_a, b = option_b, c = option_c, d = option_d;
+    if (options && typeof options === 'string' && !a) {
+      const parts = options.split(',').map(s => s.trim());
+      a = parts[0] || '';
+      b = parts[1] || '';
+      c = parts[2] || '';
+      d = parts[3] || '';
+    }
+
+    const final_image_url = image_url || imageUrl || null;
+    
+    let final_correct = correct_option || correct || 'A';
+    const cleanCorrect = final_correct.trim().toLowerCase();
+    const optList = [a, b, c, d].filter(Boolean);
+    let matchedLetter = 'A';
+    let matched = false;
+    for (let i = 0; i < optList.length; i++) {
+      if (optList[i].trim().toLowerCase() === cleanCorrect) {
+        matchedLetter = ['A', 'B', 'C', 'D'][i];
+        matched = true;
+        break;
+      }
+    }
+    if (!matched && ['a', 'b', 'c', 'd'].includes(cleanCorrect)) {
+      matchedLetter = cleanCorrect.toUpperCase();
+    }
+    
+    if (!question || !a || !b) {
       return res.status(400).json({ error: 'Missing required MCQ fields' });
     }
+
     try {
       db.prepare(`
         UPDATE bmlt_mcqs 
         SET question = ?, option_a = ?, option_b = ?, option_c = ?, option_d = ?, correct_option = ?, image_url = ?, explanation = ?
         WHERE id = ?
-      `).run(question, option_a, option_b, option_c || null, option_d || null, correct_option, image_url || null, explanation || null, req.params.id);
+      `).run(question, a, b, c || null, d || null, matchedLetter, final_image_url, explanation || null, req.params.id);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to update BMLT MCQ' });
@@ -3123,11 +3242,22 @@ User's described mood: "${mood}"
         if (c.option_d) parts.push(c.option_d);
         const optionsStr = parts.join(', ');
 
+        let correctText = '';
+        if (c.type === 'mcq') {
+          if (c.correct_option === 'A') correctText = c.option_a || 'A';
+          else if (c.correct_option === 'B') correctText = c.option_b || 'B';
+          else if (c.correct_option === 'C') correctText = c.option_c || 'C';
+          else if (c.correct_option === 'D') correctText = c.option_d || 'D';
+          else correctText = c.correct_option || '';
+        } else {
+          correctText = c.correct_guidelines || '';
+        }
+
         return {
           ...c,
           scenario: c.presentation || '',
           options: optionsStr,
-          correct: c.type === 'mcq' ? (c.correct_option || '') : (c.correct_guidelines || ''),
+          correct: correctText,
           explanation: c.correct_guidelines || '',
           normalParams: ''
         };
@@ -3159,7 +3289,25 @@ User's described mood: "${mood}"
       d = parts[3] || null;
     }
 
-    const final_correct_option = type === 'mcq' ? (correct_option || correct || null) : null;
+    let final_correct_option = null;
+    if (type === 'mcq') {
+      const cleanCorrect = (correct_option || correct || 'A').trim().toLowerCase();
+      const optList = [a, b, c, d].filter(Boolean);
+      let matchedLetter = 'A';
+      let matched = false;
+      for (let i = 0; i < optList.length; i++) {
+        if (optList[i].trim().toLowerCase() === cleanCorrect) {
+          matchedLetter = ['A', 'B', 'C', 'D'][i];
+          matched = true;
+          break;
+        }
+      }
+      if (!matched && ['a', 'b', 'c', 'd'].includes(cleanCorrect)) {
+        matchedLetter = cleanCorrect.toUpperCase();
+      }
+      final_correct_option = matchedLetter;
+    }
+
     const final_correct_guidelines = type === 'paragraph' ? (correct_guidelines || explanation || correct || null) : null;
 
     try {
@@ -3194,7 +3342,25 @@ User's described mood: "${mood}"
       d = parts[3] || null;
     }
 
-    const final_correct_option = type === 'mcq' ? (correct_option || correct || null) : null;
+    let final_correct_option = null;
+    if (type === 'mcq') {
+      const cleanCorrect = (correct_option || correct || 'A').trim().toLowerCase();
+      const optList = [a, b, c, d].filter(Boolean);
+      let matchedLetter = 'A';
+      let matched = false;
+      for (let i = 0; i < optList.length; i++) {
+        if (optList[i].trim().toLowerCase() === cleanCorrect) {
+          matchedLetter = ['A', 'B', 'C', 'D'][i];
+          matched = true;
+          break;
+        }
+      }
+      if (!matched && ['a', 'b', 'c', 'd'].includes(cleanCorrect)) {
+        matchedLetter = cleanCorrect.toUpperCase();
+      }
+      final_correct_option = matchedLetter;
+    }
+
     const final_correct_guidelines = type === 'paragraph' ? (correct_guidelines || explanation || correct || null) : null;
 
     try {
