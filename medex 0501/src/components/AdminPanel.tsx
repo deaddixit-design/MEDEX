@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Plus, Sparkles, Image, List, ShieldAlert, LogOut, UserPlus, Key, User, CheckCircle2, XCircle, X, FileSpreadsheet, RefreshCw, Settings, Copy, Check, Eye, EyeOff, ExternalLink, MessageSquare, Phone, Music, Video, Edit, Link as LinkIcon, Flame, Disc, Play, GraduationCap, BookOpen, Beaker, FileText, Layers, Activity, ChevronLeft, ChevronRight, Presentation, Newspaper, HelpCircle, Microscope } from 'lucide-react';
+import { Trash2, Plus, Sparkles, Image, List, ShieldAlert, LogOut, UserPlus, Key, User, CheckCircle2, XCircle, X, FileSpreadsheet, RefreshCw, Settings, Copy, Check, Eye, EyeOff, ExternalLink, MessageSquare, Phone, Music, Video, Edit, Link as LinkIcon, Flame, Disc, Play, GraduationCap, BookOpen, Beaker, FileText, Layers, Activity, ChevronLeft, ChevronRight, Presentation, Newspaper, HelpCircle, Microscope, ChevronUp, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MedexLogo } from './MedexLogo';
 
@@ -1862,6 +1862,70 @@ export function AdminPanel() {
       showNotification('Error uploading file', 'error');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleReorderMedia = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= media.length) return;
+
+    const newMedia = [...media];
+    const temp = newMedia[index];
+    newMedia[index] = newMedia[targetIndex];
+    newMedia[targetIndex] = temp;
+
+    setMedia(newMedia);
+
+    const ids = newMedia.map(item => item.id);
+    try {
+      const res = await authenticatedFetch('/api/admin/media/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+      if (!res.ok) {
+        showNotification('Failed to save media order', 'error');
+        fetchData();
+      }
+    } catch (err) {
+      showNotification('Failed to save media order', 'error');
+      fetchData();
+    }
+  };
+
+  const handleReorderMemory = async (filteredIndex: number, direction: 'up' | 'down', filteredList: any[]) => {
+    const targetFilteredIndex = direction === 'up' ? filteredIndex - 1 : filteredIndex + 1;
+    if (targetFilteredIndex < 0 || targetFilteredIndex >= filteredList.length) return;
+
+    const newFiltered = [...filteredList];
+    const temp = newFiltered[filteredIndex];
+    newFiltered[filteredIndex] = newFiltered[targetFilteredIndex];
+    newFiltered[targetFilteredIndex] = temp;
+
+    const newBatchMemories = [...batchMemories];
+    const idx1 = newBatchMemories.findIndex(m => m.id === temp.id);
+    const idx2 = newBatchMemories.findIndex(m => m.id === newFiltered[filteredIndex].id);
+    if (idx1 !== -1 && idx2 !== -1) {
+      const tempVal = newBatchMemories[idx1];
+      newBatchMemories[idx1] = newBatchMemories[idx2];
+      newBatchMemories[idx2] = tempVal;
+      setBatchMemories(newBatchMemories);
+    }
+
+    const ids = newFiltered.map(item => item.id);
+    try {
+      const res = await authenticatedFetch('/api/admin/batch-memories/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+      if (!res.ok) {
+        showNotification('Failed to save memory order', 'error');
+        fetchData();
+      }
+    } catch (err) {
+      showNotification('Failed to save memory order', 'error');
+      fetchData();
     }
   };
 
@@ -5260,8 +5324,28 @@ export function AdminPanel() {
             <div className="lg:col-span-2 space-y-4">
               <h2 className="text-xl md:text-2xl font-black tracking-tight mb-6">Gallery Items ({media.length})</h2>
               <div className="grid grid-cols-1 gap-4">
-                {media.map(item => (
+                {media.map((item, index) => (
                   <div key={item.id} className="bg-white p-3 md:p-4 rounded-[1.5rem] border border-zinc-200 flex items-center gap-3 md:gap-6 hover:border-black/10 transition-all shadow-sm">
+                    <div className="flex flex-col items-center gap-0.5 shrink-0 border-r border-zinc-100 pr-2">
+                      <button 
+                        type="button"
+                        onClick={() => handleReorderMedia(index, 'up')}
+                        disabled={index === 0}
+                        className="p-1 text-zinc-400 hover:text-black disabled:opacity-25 transition-all cursor-pointer"
+                        title="Move Up"
+                      >
+                        <ChevronUp size={16} />
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => handleReorderMedia(index, 'down')}
+                        disabled={index === media.length - 1}
+                        className="p-1 text-zinc-400 hover:text-black disabled:opacity-25 transition-all cursor-pointer"
+                        title="Move Down"
+                      >
+                        <ChevronDown size={16} />
+                      </button>
+                    </div>
                     <img src={item.url} alt={item.title} className="w-16 h-16 md:w-24 md:h-24 object-cover rounded-xl md:rounded-2xl shrink-0" referrerPolicy="no-referrer" />
                     <div className="flex-1 min-w-0">
                       <h4 className="font-black text-base md:text-lg tracking-tight truncate">{item.title}</h4>
@@ -5608,8 +5692,28 @@ export function AdminPanel() {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:gap-4">
-                      {filtered.map(item => (
+                      {filtered.map((item, index) => (
                         <div key={item.id} className="bg-white p-2.5 sm:p-4 rounded-xl sm:rounded-2xl md:rounded-[1.5rem] border border-zinc-200 flex items-center gap-3 sm:gap-4 md:gap-6 hover:border-black/10 transition-all shadow-sm">
+                          <div className="flex flex-col items-center gap-0.5 shrink-0 border-r border-zinc-100 pr-1 sm:pr-2">
+                            <button 
+                              type="button"
+                              onClick={() => handleReorderMemory(index, 'up', filtered)}
+                              disabled={index === 0}
+                              className="p-1 text-zinc-400 hover:text-black disabled:opacity-25 transition-all cursor-pointer"
+                              title="Move Up"
+                            >
+                              <ChevronUp size={15} />
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => handleReorderMemory(index, 'down', filtered)}
+                              disabled={index === filtered.length - 1}
+                              className="p-1 text-zinc-400 hover:text-black disabled:opacity-25 transition-all cursor-pointer"
+                              title="Move Down"
+                            >
+                              <ChevronDown size={15} />
+                            </button>
+                          </div>
                           <div className="w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-zinc-55 rounded-xl md:rounded-2xl shrink-0 overflow-hidden relative border border-zinc-100">
                             <img src={item.url.includes('youtube.com') || item.url.includes('youtu.be') ? `https://img.youtube.com/vi/${item.url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1] || ''}/hqdefault.jpg` : item.url} alt={item.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             {item.type === 'video' && (
