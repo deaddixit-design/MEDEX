@@ -2996,9 +2996,41 @@ User's described mood: "${mood}"
     res.json({ success: true });
   });
 
+  app.put('/api/media/:id', requireAdmin, (req, res) => {
+    const { title, url, type, year } = req.body;
+    if (!title || !url || !type || !year) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    try {
+      const info = db.prepare('UPDATE media SET title = ?, url = ?, type = ?, year = ? WHERE id = ?').run(title, url, type, year, req.params.id);
+      if (info.changes === 0) {
+        return res.status(404).json({ error: 'Media item not found' });
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to update media item' });
+    }
+  });
+
   app.delete('/api/admin/batch-memories/:id', requireAdmin, (req, res) => {
     db.prepare('DELETE FROM batch_memories WHERE id = ?').run(req.params.id);
     res.json({ success: true });
+  });
+
+  app.put('/api/admin/batch-memories/:id', requireAdmin, (req, res) => {
+    const { batch_name, title, url, type, uploaded_by } = req.body;
+    if (!batch_name || !title || !url || !type) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    try {
+      const info = db.prepare('UPDATE batch_memories SET batch_name = ?, title = ?, url = ?, type = ?, uploaded_by = ? WHERE id = ?').run(batch_name, title, url, type, uploaded_by || 'Anonymous', req.params.id);
+      if (info.changes === 0) {
+        return res.status(404).json({ error: 'Memory not found' });
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to update memory' });
+    }
   });
 
   app.post('/api/performances', requireAdmin, (req, res) => {
@@ -3081,6 +3113,46 @@ User's described mood: "${mood}"
     const hashedPassword = bcrypt.hashSync(newPassword, 10);
     db.prepare('UPDATE admins SET password = ? WHERE id = ?').run(hashedPassword, req.params.id);
     res.json({ success: true });
+  });
+
+  app.put('/api/admin/accounts/:id', requireAdminOnly, (req, res) => {
+    const { username, password, display_name, role } = req.body;
+    const targetId = parseInt(req.params.id);
+    if (!username || !display_name || !role) {
+      return res.status(400).json({ error: 'Username, display name, and role are required' });
+    }
+    try {
+      if (targetId === req.session.adminId && role !== 'admin') {
+        return res.status(400).json({ error: 'You cannot change your own role from admin' });
+      }
+
+      const existing = db.prepare('SELECT password FROM admins WHERE id = ?').get(targetId) as any;
+      if (!existing) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+
+      let activePassword = existing.password;
+      if (password && password.trim() !== '') {
+        activePassword = bcrypt.hashSync(password, 10);
+      }
+
+      db.prepare(`
+        UPDATE admins 
+        SET username = ?, 
+            password = ?, 
+            display_name = ?, 
+            role = ?
+        WHERE id = ?
+      `).run(username, activePassword, display_name, role, targetId);
+
+      res.json({ success: true });
+    } catch (err: any) {
+      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        res.status(400).json({ error: 'Username already exists' });
+      } else {
+        res.status(500).json({ error: err.message || 'Failed to update account' });
+      }
+    }
   });
 
   app.post('/api/admin/recovery-reset', (req, res) => {
