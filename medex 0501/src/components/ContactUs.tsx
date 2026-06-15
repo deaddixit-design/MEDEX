@@ -70,7 +70,7 @@ export function ContactUs() {
             </div>
             <h3 className="text-base sm:text-lg md:text-xl font-bold mb-1 md:mb-2">Call Us</h3>
             <p className="text-zinc-550 text-xs sm:text-sm mb-3 md:mb-4">Available during college hours for urgent queries.</p>
-            <span className="text-sm sm:text-base md:text-lg font-black text-zinc-900">+91 98765 43210</span>
+            <span className="text-sm sm:text-base md:text-lg font-black text-zinc-900">+91 8900474778</span>
           </div>
 
           <div className="p-5 sm:p-6 md:p-8 bg-zinc-50 rounded-2xl md:rounded-[2.5rem] border border-zinc-100 hover:border-black/10 transition-all">
