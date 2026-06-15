@@ -389,6 +389,14 @@ try {
   db.prepare("ALTER TABLE admins ADD COLUMN role TEXT DEFAULT 'admin'").run();
 } catch (e) {}
 
+try {
+  db.prepare("ALTER TABLE media ADD COLUMN sort_order INTEGER DEFAULT 0").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE batch_memories ADD COLUMN sort_order INTEGER DEFAULT 0").run();
+} catch (e) {}
+
 // Initialize Custom BMLT Desk Tables for specialized MCQs and Case Studies
 try {
   db.prepare(`
@@ -2751,12 +2759,12 @@ User's described mood: "${mood}"
 
   // Public API Routes
   app.get('/api/media', (req, res) => {
-    const media = db.prepare('SELECT * FROM media ORDER BY year DESC, created_at DESC').all();
+    const media = db.prepare('SELECT * FROM media ORDER BY sort_order ASC, year DESC, created_at DESC').all();
     res.json(media);
   });
 
   app.get('/api/batch-memories', (req, res) => {
-    const memories = db.prepare('SELECT * FROM batch_memories ORDER BY batch_name DESC, created_at DESC').all();
+    const memories = db.prepare('SELECT * FROM batch_memories ORDER BY sort_order ASC, batch_name DESC, created_at DESC').all();
     res.json(memories);
   });
 
@@ -3012,6 +3020,25 @@ User's described mood: "${mood}"
     }
   });
 
+  app.post('/api/admin/media/reorder', requireAdmin, (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) {
+      return res.status(400).json({ error: 'ids must be an array' });
+    }
+    try {
+      const updateStmt = db.prepare('UPDATE media SET sort_order = ? WHERE id = ?');
+      const transaction = db.transaction((idList) => {
+        idList.forEach((id: any, index: number) => {
+          updateStmt.run(index, id);
+        });
+      });
+      transaction(ids);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to reorder media' });
+    }
+  });
+
   app.delete('/api/admin/batch-memories/:id', requireAdmin, (req, res) => {
     db.prepare('DELETE FROM batch_memories WHERE id = ?').run(req.params.id);
     res.json({ success: true });
@@ -3030,6 +3057,25 @@ User's described mood: "${mood}"
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to update memory' });
+    }
+  });
+
+  app.post('/api/admin/batch-memories/reorder', requireAdmin, (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) {
+      return res.status(400).json({ error: 'ids must be an array' });
+    }
+    try {
+      const updateStmt = db.prepare('UPDATE batch_memories SET sort_order = ? WHERE id = ?');
+      const transaction = db.transaction((idList) => {
+        idList.forEach((id: any, index: number) => {
+          updateStmt.run(index, id);
+        });
+      });
+      transaction(ids);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to reorder memories' });
     }
   });
 
