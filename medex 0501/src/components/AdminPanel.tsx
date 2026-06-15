@@ -253,6 +253,10 @@ export function AdminPanel() {
   const [students, setStudents] = useState<any[]>([]);
   const [studentForm, setStudentForm] = useState({ username: '', password: '', display_name: '', roll_no: '', reg_no: '', points: 0, session: '2023-2026', section: 'A' });
   const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
+  const [editingMediaId, setEditingMediaId] = useState<number | null>(null);
+  const [editingMemoryId, setEditingMemoryId] = useState<number | null>(null);
+  const [memoryForm, setMemoryForm] = useState({ batch_name: '', title: '', url: '', type: 'photo', uploaded_by: '' });
+  const [editingAdminId, setEditingAdminId] = useState<number | null>(null);
   const [studentSessionFilter, setStudentSessionFilter] = useState<string>('All');
   const [studentSectionFilter, setStudentSectionFilter] = useState<string>('All');
   const [academicSessions, setAcademicSessions] = useState<any[]>([]);
@@ -1863,13 +1867,15 @@ export function AdminPanel() {
 
   const handleAddMedia = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await authenticatedFetch('/api/media', {
-      method: 'POST',
+    const url = editingMediaId ? `/api/media/${editingMediaId}` : '/api/media';
+    const method = editingMediaId ? 'PUT' : 'POST';
+    const res = await authenticatedFetch(url, {
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(mediaForm)
     });
     if (res.ok) {
-      const result = await res.json();
+      const result = editingMediaId ? { id: editingMediaId } : await res.json();
       
       // Sync to Google Sheets automatically
       try {
@@ -1893,10 +1899,11 @@ export function AdminPanel() {
       }
 
       setMediaForm({ title: '', url: '', type: 'photo', year: new Date().getFullYear() });
+      setEditingMediaId(null);
       fetchData();
-      showNotification('Media added successfully');
+      showNotification(editingMediaId ? 'Media updated successfully' : 'Media added successfully');
     } else {
-      showNotification('Failed to add media', 'error');
+      showNotification(editingMediaId ? 'Failed to update media' : 'Failed to add media', 'error');
     }
   };
 
@@ -2313,18 +2320,23 @@ export function AdminPanel() {
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await authenticatedFetch('/api/admin/register', {
-        method: 'POST',
+      const url = editingAdminId 
+        ? `/api/admin/accounts/${editingAdminId}` 
+        : '/api/admin/register';
+      const method = editingAdminId ? 'PUT' : 'POST';
+      const res = await authenticatedFetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(adminForm)
       });
       const data = await res.json();
       if (res.ok) {
         setAdminForm({ username: '', password: '', display_name: '', role: 'author' });
+        setEditingAdminId(null);
         fetchData();
-        showNotification('Admin account created successfully!');
+        showNotification(editingAdminId ? 'User account updated successfully!' : 'User account created successfully!');
       } else {
-        showNotification(data.error || 'Failed to add admin', 'error');
+        showNotification(data.error || 'Failed to add/update user', 'error');
       }
     } catch (err) {
       showNotification('Network error occurred', 'error');
@@ -5188,7 +5200,8 @@ export function AdminPanel() {
             <div className="lg:col-span-1">
               <div className="bg-zinc-50 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[2rem] border border-zinc-200 sticky top-32">
                 <h3 className="text-xl md:text-2xl font-black tracking-tight mb-6 flex items-center gap-3">
-                  <Plus size={20} className="md:w-6 md:h-6"/> Add Media
+                  {editingMediaId ? <Edit size={20} className="md:w-6 md:h-6"/> : <Plus size={20} className="md:w-6 md:h-6"/>}
+                  {editingMediaId ? 'Modify Media' : 'Add Media'}
                 </h3>
                 <form onSubmit={handleAddMedia} className="space-y-4">
                   <div className="space-y-1">
@@ -5201,13 +5214,13 @@ export function AdminPanel() {
                       <input required placeholder="Image/Video URL" value={mediaForm.url} onChange={e => setMediaForm({...mediaForm, url: e.target.value})} className="flex-1 px-4 py-3 rounded-xl border border-zinc-200 bg-white" />
                       <label className="shrink-0 cursor-pointer bg-zinc-100 hover:bg-zinc-200 text-zinc-600 p-3 rounded-xl transition-all flex items-center justify-center border border-zinc-200">
                         <input 
-                          type="file" 
-                          className="hidden" 
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleFileUpload(file, (url) => setMediaForm({...mediaForm, url}));
-                          }}
-                          disabled={uploading}
+                           type="file" 
+                           className="hidden" 
+                           onChange={(e) => {
+                             const file = e.target.files?.[0];
+                             if (file) handleFileUpload(file, (url) => setMediaForm({...mediaForm, url}));
+                           }}
+                           disabled={uploading}
                         />
                         {uploading ? <div className="w-5 h-5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" /> : <Plus size={20} />}
                       </label>
@@ -5226,7 +5239,21 @@ export function AdminPanel() {
                       <input required type="number" value={mediaForm.year} onChange={e => setMediaForm({...mediaForm, year: parseInt(e.target.value)})} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white" />
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-black hover:bg-zinc-800 transition-all shadow-lg mt-4">Add to Gallery</button>
+                  <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-black hover:bg-zinc-800 transition-all shadow-lg mt-4">
+                    {editingMediaId ? 'Update Media' : 'Add to Gallery'}
+                  </button>
+                  {editingMediaId && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setEditingMediaId(null);
+                        setMediaForm({ title: '', url: '', type: 'photo', year: new Date().getFullYear() });
+                      }} 
+                      className="w-full bg-zinc-250 text-zinc-800 py-3 rounded-xl font-bold hover:bg-zinc-300 transition-all mt-2"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
                 </form>
               </div>
             </div>
@@ -5240,9 +5267,26 @@ export function AdminPanel() {
                       <h4 className="font-black text-base md:text-lg tracking-tight truncate">{item.title}</h4>
                       <p className="text-[10px] md:text-sm text-zinc-500 font-bold uppercase tracking-widest">{item.type} • {item.year}</p>
                     </div>
-                    <button onClick={() => confirmDelete('media', item.id, item.title)} className="p-2 md:p-3 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0">
-                      <Trash2 size={18} className="md:w-5 md:h-5" />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button 
+                        onClick={() => {
+                          setEditingMediaId(item.id);
+                          setMediaForm({
+                            title: item.title,
+                            url: item.url,
+                            type: item.type,
+                            year: item.year
+                          });
+                        }} 
+                        className="p-2 md:p-3 text-zinc-400 hover:text-indigo-650 hover:bg-indigo-50 rounded-xl transition-all"
+                        title="Edit Media"
+                      >
+                        <Edit size={18} className="md:w-5 md:h-5" />
+                      </button>
+                      <button onClick={() => confirmDelete('media', item.id, item.title)} className="p-2 md:p-3 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                        <Trash2 size={18} className="md:w-5 md:h-5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -5254,17 +5298,17 @@ export function AdminPanel() {
             <div className="lg:col-span-1 space-y-4 md:space-y-6 lg:sticky lg:top-32 h-fit">
               <div className="bg-zinc-50 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[2rem] border border-zinc-200 shadow-sm">
                 <h3 className="text-lg md:text-xl lg:text-2xl font-black tracking-tight mb-4 md:mb-6 flex items-center gap-2.5">
-                  <GraduationCap size={20} className="md:w-6 md:h-6 text-emerald-500"/> Add Batch Memory
+                  <GraduationCap size={20} className="md:w-6 md:h-6 text-emerald-500"/>
+                  {editingMemoryId ? 'Modify Batch Memory' : 'Add Batch Memory'}
                 </h3>
                 <form 
                   onSubmit={async (e) => {
                     e.preventDefault();
-                    const form = (e.target as HTMLFormElement);
-                    const bName = (form.elements.namedItem('batchName') as HTMLSelectElement).value;
-                    const caption = (form.elements.namedItem('caption') as HTMLInputElement).value;
-                    const linkUrl = (form.elements.namedItem('linkUrl') as HTMLInputElement).value;
-                    const mType = (form.elements.namedItem('mType') as HTMLSelectElement).value;
-                    const contributor = (form.elements.namedItem('contributor') as HTMLInputElement).value;
+                    const bName = memoryForm.batch_name || (batches[0]?.name || 'Batch 2025');
+                    const caption = memoryForm.title;
+                    const linkUrl = memoryForm.url;
+                    const mType = memoryForm.type;
+                    const contributor = memoryForm.uploaded_by;
 
                     if (!caption || !linkUrl) {
                       showNotification('Please fill out required fields', 'error');
@@ -5272,8 +5316,12 @@ export function AdminPanel() {
                     }
 
                     try {
-                      const res = await authenticatedFetch('/api/public/batch-memories', {
-                        method: 'POST',
+                      const url = editingMemoryId 
+                        ? `/api/admin/batch-memories/${editingMemoryId}` 
+                        : '/api/public/batch-memories';
+                      const method = editingMemoryId ? 'PUT' : 'POST';
+                      const res = await authenticatedFetch(url, {
+                        method,
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                           batch_name: bName,
@@ -5284,11 +5332,12 @@ export function AdminPanel() {
                         })
                       });
                       if (res.ok) {
-                        showNotification('Batch memory added successfully');
-                        form.reset();
+                        showNotification(editingMemoryId ? 'Batch memory updated successfully' : 'Batch memory added successfully');
+                        setMemoryForm({ batch_name: '', title: '', url: '', type: 'photo', uploaded_by: '' });
+                        setEditingMemoryId(null);
                         fetchData();
                       } else {
-                        showNotification('Failed to save memory', 'error');
+                        showNotification(editingMemoryId ? 'Failed to update memory' : 'Failed to save memory', 'error');
                       }
                     } catch (err) {
                       showNotification('Failed to connect to server', 'error');
@@ -5298,12 +5347,12 @@ export function AdminPanel() {
                 >
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Caption / Note</label>
-                    <input required name="caption" placeholder="Late night lab studies..." className="w-full px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white" />
+                    <input required name="caption" placeholder="Late night lab studies..." value={memoryForm.title} onChange={e => setMemoryForm({...memoryForm, title: e.target.value})} className="w-full px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Media URL</label>
                     <div className="flex gap-2">
-                      <input required name="linkUrl" id="adminMemUrl" placeholder="Image or Video URL" className="flex-1 px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white" />
+                      <input required name="linkUrl" id="adminMemUrl" placeholder="Image or Video URL" value={memoryForm.url} onChange={e => setMemoryForm({...memoryForm, url: e.target.value})} className="flex-1 px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white" />
                       <label className="shrink-0 cursor-pointer bg-zinc-100 hover:bg-zinc-200 text-zinc-600 p-2.5 sm:p-3 rounded-xl transition-all flex items-center justify-center border border-zinc-200">
                         <input 
                           type="file" 
@@ -5312,8 +5361,7 @@ export function AdminPanel() {
                             const file = e.target.files?.[0];
                             if (file) {
                               handleFileUpload(file, (url) => {
-                                const input = document.getElementById('adminMemUrl') as HTMLInputElement;
-                                if (input) input.value = url;
+                                setMemoryForm(prev => ({ ...prev, url }));
                               });
                             }
                           }}
@@ -5326,7 +5374,7 @@ export function AdminPanel() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Type</label>
-                      <select name="mType" defaultValue="photo" className="w-full px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white font-medium">
+                      <select name="mType" value={memoryForm.type} onChange={e => setMemoryForm({...memoryForm, type: e.target.value as any})} className="w-full px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white font-medium">
                         <option value="photo">Photo</option>
                         <option value="video">Video</option>
                       </select>
@@ -5357,7 +5405,7 @@ export function AdminPanel() {
                             onClick={async () => {
                               if (!adminNewBatchName.trim()) {
                                 showNotification('Batch name is required', 'error');
-                                return;
+                                  return;
                               }
                               try {
                                 const res = await authenticatedFetch('/api/admin/batches', {
@@ -5376,6 +5424,7 @@ export function AdminPanel() {
                                   if (bRes.ok) {
                                     const updatedList = await bRes.json();
                                     setBatches(updatedList);
+                                    setMemoryForm(prev => ({ ...prev, batch_name: savedName }));
                                   }
                                 } else {
                                   const msg = await res.json();
@@ -5391,7 +5440,7 @@ export function AdminPanel() {
                           </button>
                         </div>
                       ) : (
-                        <select name="batchName" className="w-full px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white font-bold text-zinc-700">
+                        <select name="batchName" value={memoryForm.batch_name} onChange={e => setMemoryForm({...memoryForm, batch_name: e.target.value})} className="w-full px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white font-bold text-zinc-700">
                           {batches.map((b) => (
                             <option key={b.id} value={b.name}>{b.name}</option>
                           ))}
@@ -5409,9 +5458,23 @@ export function AdminPanel() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Contributor</label>
-                    <input name="contributor" placeholder="e.g. Kabir Das (CSE '24)" className="w-full px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white" />
+                    <input name="contributor" placeholder="e.g. Kabir Das (CSE '24)" value={memoryForm.uploaded_by} onChange={e => setMemoryForm({...memoryForm, uploaded_by: e.target.value})} className="w-full px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm rounded-xl border border-zinc-200 bg-white" />
                   </div>
-                  <button type="submit" className="w-full bg-black text-white py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black hover:bg-zinc-800 transition-all shadow-lg mt-3 sm:mt-4">Save to Memory Book</button>
+                  <button type="submit" className="w-full bg-black text-white py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black hover:bg-zinc-800 transition-all shadow-lg mt-3 sm:mt-4">
+                    {editingMemoryId ? 'Update Memory' : 'Save to Memory Book'}
+                  </button>
+                  {editingMemoryId && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setEditingMemoryId(null);
+                        setMemoryForm({ batch_name: '', title: '', url: '', type: 'photo', uploaded_by: '' });
+                      }} 
+                      className="w-full bg-zinc-250 text-zinc-800 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-bold hover:bg-zinc-300 transition-all mt-2"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
                 </form>
               </div>
 
@@ -5561,9 +5624,27 @@ export function AdminPanel() {
                               {item.batch_name} • By {item.uploaded_by || 'Anonymous'}
                             </p>
                           </div>
-                          <button onClick={() => confirmDelete('batches' as any, item.id, item.title)} className="p-1.5 sm:p-2 md:p-3 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all shrink-0">
-                            <Trash2 size={16} className="sm:w-5 sm:h-5 cursor-pointer" />
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button 
+                              onClick={() => {
+                                setEditingMemoryId(item.id);
+                                setMemoryForm({
+                                  batch_name: item.batch_name,
+                                  title: item.title,
+                                  url: item.url,
+                                  type: item.type,
+                                  uploaded_by: item.uploaded_by || ''
+                                });
+                              }}
+                              className="p-1.5 sm:p-2 md:p-3 text-zinc-400 hover:text-indigo-650 hover:bg-indigo-50 rounded-xl transition-all"
+                              title="Edit Memory"
+                            >
+                              <Edit size={16} className="sm:w-5 sm:h-5 cursor-pointer" />
+                            </button>
+                            <button onClick={() => confirmDelete('batches' as any, item.id, item.title)} className="p-1.5 sm:p-2 md:p-3 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                              <Trash2 size={16} className="sm:w-5 sm:h-5 cursor-pointer" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                       {filtered.length === 0 && (
@@ -6202,7 +6283,8 @@ export function AdminPanel() {
             <div className="lg:col-span-1">
               <div className="bg-zinc-50 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[2rem] border border-zinc-200 sticky top-32">
                 <h3 className="text-xl md:text-2xl font-black tracking-tight mb-6 flex items-center gap-3">
-                  <UserPlus size={20} className="md:w-6 md:h-6"/> Register User
+                  {editingAdminId ? <Edit size={20} className="md:w-6 md:h-6"/> : <UserPlus size={20} className="md:w-6 md:h-6"/>}
+                  {editingAdminId ? 'Modify User Account' : 'Register User'}
                 </h3>
                 <form onSubmit={handleAddAdmin} className="space-y-4">
                   <div className="space-y-1">
@@ -6214,8 +6296,10 @@ export function AdminPanel() {
                     <input required placeholder="e.g. jdoe" value={adminForm.username} onChange={e => setAdminForm({...adminForm, username: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Password</label>
-                    <input required type="password" placeholder="••••••••" value={adminForm.password} onChange={e => setAdminForm({...adminForm, password: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white" />
+                    <label className="text-xs font-bold text-zinc-500 uppercase ml-1">
+                      {editingAdminId ? 'Assign New Password (Optional)' : 'Password'}
+                    </label>
+                    <input required={!editingAdminId} type="password" placeholder={editingAdminId ? "Leave blank to keep current" : "••••••••"} value={adminForm.password} onChange={e => setAdminForm({...adminForm, password: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Account Role</label>
@@ -6228,7 +6312,21 @@ export function AdminPanel() {
                       <option value="admin">System Admin (Full Access)</option>
                     </select>
                   </div>
-                  <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-black hover:bg-zinc-800 transition-all shadow-lg mt-4">Create Account</button>
+                  <button type="submit" className="w-full bg-black text-white py-4 rounded-xl font-black hover:bg-zinc-800 transition-all shadow-lg mt-4">
+                    {editingAdminId ? 'Update Account' : 'Create Account'}
+                  </button>
+                  {editingAdminId && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setEditingAdminId(null);
+                        setAdminForm({ username: '', password: '', display_name: '', role: 'author' });
+                      }} 
+                      className="w-full bg-zinc-250 text-zinc-800 py-3 rounded-xl font-bold hover:bg-zinc-300 transition-all mt-2"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
                 </form>
               </div>
             </div>
@@ -6254,7 +6352,22 @@ export function AdminPanel() {
                       </h4>
                       <p className="text-[10px] md:text-sm text-zinc-500 font-medium truncate">@{admin.username} • Joined {new Date(admin.created_at).toLocaleDateString()}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 animate-none">
+                      <button 
+                        onClick={() => {
+                          setEditingAdminId(admin.id);
+                          setAdminForm({
+                            username: admin.username,
+                            password: '',
+                            display_name: admin.display_name,
+                            role: admin.role || 'admin'
+                          });
+                        }}
+                        className="p-3 text-zinc-400 hover:text-indigo-650 hover:bg-indigo-50 rounded-xl transition-all"
+                        title="Edit Account Details"
+                      >
+                        <Edit size={20} />
+                      </button>
                       <button 
                         onClick={() => handleResetAdminPassword(admin.id)}
                         className="p-3 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-xl transition-all"
