@@ -1594,6 +1594,8 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const lastYtTimeRef = React.useRef<number>(0);
   const lastSyncNowRef = React.useRef<number>(0);
+  const lastAudioTimeRef = React.useRef<number>(0);
+  const lastAudioSyncNowRef = React.useRef<number>(0);
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
@@ -1604,13 +1606,17 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
     let animationId: number;
     let phase = 0;
 
-    const resize = () => {
-      if (!canvas) return;
-      canvas.width = canvas.parentElement?.clientWidth || 300;
-      canvas.height = canvas.parentElement?.clientHeight || 96;
-    };
-    resize();
-    window.addEventListener('resize', resize);
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        canvas.width = width || 300;
+        canvas.height = height || 96;
+      }
+    });
+
+    if (canvas.parentElement) {
+      resizeObserver.observe(canvas.parentElement);
+    }
 
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1621,10 +1627,23 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
       let timeMs = performance.now();
       let ytVolumeMultiplier = 1.0;
 
-      if (audioEl) {
+      // Only sync with audio element if it has a source loaded (prevents matching current page URL)
+      if (audioEl && audioEl.src && audioEl.src !== window.location.href) {
         try {
           activePlaying = !audioEl.paused && !audioEl.ended;
-          timeMs = audioEl.currentTime * 1000;
+          const audioTime = audioEl.currentTime * 1000;
+          const now = performance.now();
+          if (activePlaying) {
+            if (lastAudioTimeRef.current !== audioTime) {
+              lastAudioTimeRef.current = audioTime;
+              lastAudioSyncNowRef.current = now;
+            }
+            const elapsed = now - lastAudioSyncNowRef.current;
+            const safeElapsed = Math.min(elapsed, 500); // prevent drift
+            timeMs = audioTime + safeElapsed;
+          } else {
+            timeMs = audioTime;
+          }
           ytVolumeMultiplier = audioEl.muted ? 0.0 : audioEl.volume;
         } catch (e) {}
       } else if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function' && typeof ytPlayer.getPlayerState === 'function') {
@@ -1682,10 +1701,11 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
 
       const selectedColors = waveColors[frequencyType as keyof typeof waveColors] || ['rgba(239, 68, 68, 0.7)', 'rgba(239, 68, 68, 0.3)'];
 
-      // Check if we have active Web Audio analyser node data (Mic Sync or Direct Media)
+      // Check if we have active Web Audio analyser node data and if it has actual signal (not silent/CORS-blocked/all-zeros)
       let realTimeData: Uint8Array = new Uint8Array(0);
       let frequencyData: Uint8Array = new Uint8Array(0);
       let waveAmplifier = 1.0;
+      let hasRealAudioData = false;
       
       if (analyser) {
         try {
@@ -1697,20 +1717,34 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
           analyser.getByteFrequencyData(frequencyData);
           
           let sum = 0;
+          let isAllConstant = true;
+          let isAllZero = true;
+          const firstVal = realTimeData[0];
+          
           for (let i = 0; i < bufferLength; i++) {
+            if (realTimeData[i] !== 0) {
+              isAllZero = false;
+            }
             const val = (realTimeData[i] - 128) / 128;
             sum += val * val;
+            if (realTimeData[i] !== firstVal) {
+              isAllConstant = false;
+            }
           }
           const rms = Math.sqrt(sum / bufferLength);
-          // If silence, waveAmplifier will shrink to 0!
           waveAmplifier = rms * 4.0;
+          
+          // If the waveform data changes (not all constant/silent/all-zeros) and rms > 0.005, we have real data!
+          if (!isAllZero && !isAllConstant && rms > 0.005) {
+            hasRealAudioData = true;
+          }
         } catch (e) {
           realTimeData = new Uint8Array(0);
           frequencyData = new Uint8Array(0);
         }
       }
 
-      if (analyser && realTimeData.length > 0) {
+      if (analyser && hasRealAudioData && realTimeData.length > 0) {
         // 1. Draw ACTUAL real-time frequency equalizer bars!
         const barWidth = Math.ceil(canvas.width / 36);
         const gap = 2;
@@ -1823,11 +1857,11 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
           ctx.fill();
         }
 
-        // 2. Draw a nervous, twitching soundwave line running across the middle
+        // 2. Draw procedural waveform line!
         ctx.beginPath();
         const strokeColor = selectedColors[0];
         ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 2.0;
+        ctx.lineWidth = 2.5;
         ctx.shadowColor = strokeColor;
         ctx.shadowBlur = 10 + beatIntensity * 12;
 
@@ -1863,7 +1897,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
 
     return () => {
       cancelAnimationFrame(animationId);
-      window.removeEventListener('resize', resize);
+      resizeObserver.disconnect();
     };
   }, [frequencyType, isPlaying, bpm, analyser, ytPlayerRef, audioElementRef]);
 
