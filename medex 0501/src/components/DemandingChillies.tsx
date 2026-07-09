@@ -142,6 +142,45 @@ export function DemandingChillies() {
     }
   };
 
+  // Web Audio Analyser references for list tracks
+  const listAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const listAudioSourceRef = React.useRef<MediaElementAudioSourceNode | null>(null);
+  const [listAnalyser, setListAnalyser] = useState<AnalyserNode | null>(null);
+
+  useEffect(() => {
+    listAudioSourceRef.current = null;
+    setListAnalyser(null);
+  }, [activeItemId]);
+
+  const setupListAudioAnalyser = () => {
+    if (!listAudioRef.current) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      if (!synthContextRef.current) {
+        synthContextRef.current = new AudioCtx();
+      }
+      const ctx = synthContextRef.current;
+
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      if (!listAudioSourceRef.current) {
+        listAudioSourceRef.current = ctx.createMediaElementSource(listAudioRef.current);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        
+        listAudioSourceRef.current.connect(analyser);
+        analyser.connect(ctx.destination);
+        setListAnalyser(analyser);
+      }
+    } catch (err) {
+      console.warn('Web Audio API list analyser setup failed:', err);
+    }
+  };
+
   const isDirectAudioLink = (url?: string) => {
     if (!url) return false;
     const lower = url.toLowerCase();
@@ -750,26 +789,44 @@ export function DemandingChillies() {
                                               animate={{ height: 'auto', opacity: 1 }}
                                               className="py-4 overflow-hidden"
                                             >
-                                          <div className="px-0 md:px-4">
+                                          <div className="px-0 md:px-4 space-y-4">
                                             {isYoutube(song.link) ? (
-                                              <div className="relative aspect-video w-full max-w-xl mx-auto rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg">
-                                                <iframe
-                                                  src={getEmbedUrl(song.link)}
-                                                  className="w-full h-full border-0"
-                                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                  allowFullScreen
+                                              <div className="space-y-4">
+                                                <RealtimeWaveCanvas 
+                                                  frequencyType="synthWave" 
+                                                  isPlaying={true} 
+                                                  bpm={90} 
                                                 />
+                                                <div className="relative aspect-video w-full max-w-xl mx-auto rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg">
+                                                  <iframe
+                                                    src={getEmbedUrl(song.link)}
+                                                    className="w-full h-full border-0"
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                    allowFullScreen
+                                                  />
+                                                </div>
                                               </div>
                                             ) : (
-                                              <audio 
-                                                key={song.id}
-                                                src={getDirectUrl(song.link)}
-                                                controls 
-                                                autoPlay 
-                                                className="w-full h-10 md:h-14"
-                                              >
-                                                Your browser does not support the audio element.
-                                              </audio>
+                                              <div className="space-y-4">
+                                                <RealtimeWaveCanvas 
+                                                  frequencyType="ambientMelody" 
+                                                  isPlaying={true} 
+                                                  bpm={80} 
+                                                  analyser={listAnalyser}
+                                                />
+                                                <audio 
+                                                  ref={listAudioRef}
+                                                  key={song.id}
+                                                  src={getDirectUrl(song.link)}
+                                                  controls 
+                                                  crossOrigin="anonymous"
+                                                  autoPlay 
+                                                  onPlay={setupListAudioAnalyser}
+                                                  className="w-full h-10 md:h-14"
+                                                >
+                                                  Your browser does not support the audio element.
+                                                </audio>
+                                              </div>
                                             )}
                                           </div>
                                             </motion.div>
