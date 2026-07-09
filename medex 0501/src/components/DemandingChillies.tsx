@@ -1532,7 +1532,6 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
         return;
       }
 
-      const wavesCount = frequencyType === 'ambientMelody' || frequencyType === 'chillHarmonics' ? 2 : 4;
       const waveColors = {
         synthWave: ['rgba(239, 68, 68, 0.85)', 'rgba(236, 72, 153, 0.65)', 'rgba(139, 92, 246, 0.45)'],
         ambientMelody: ['rgba(52, 211, 153, 0.8)', 'rgba(45, 212, 191, 0.5)'],
@@ -1545,6 +1544,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
 
       // Check if we have active Web Audio analyser node data
       let realTimeData: Uint8Array = new Uint8Array(0);
+      let frequencyData: Uint8Array = new Uint8Array(0);
       let waveAmplifier = 1.0;
       
       if (analyser) {
@@ -1552,6 +1552,9 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
           const bufferLength = analyser.frequencyBinCount;
           realTimeData = new Uint8Array(bufferLength);
           analyser.getByteTimeDomainData(realTimeData);
+          
+          frequencyData = new Uint8Array(bufferLength);
+          analyser.getByteFrequencyData(frequencyData);
           
           let sum = 0;
           for (let i = 0; i < bufferLength; i++) {
@@ -1562,47 +1565,69 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
           waveAmplifier = 0.5 + rms * 3.5;
         } catch (e) {
           realTimeData = new Uint8Array(0);
+          frequencyData = new Uint8Array(0);
         }
       }
 
       if (analyser && realTimeData.length > 0) {
-        // Draw real-time Audio Waveform
-        const bufferLength = realTimeData.length;
+        // 1. Draw ACTUAL real-time frequency equalizer bars!
+        const barWidth = Math.ceil(canvas.width / 36);
+        const gap = 2;
+        ctx.shadowBlur = 4 + waveAmplifier * 8;
         
-        for (let w = 0; w < 2; w++) {
-          ctx.beginPath();
-          const strokeColor = selectedColors[w % selectedColors.length];
-          ctx.strokeStyle = strokeColor;
-          ctx.lineWidth = w === 0 ? 3.0 : 1.5;
+        for (let i = 0; i < 36; i++) {
+          const x = i * (barWidth + gap);
+          
+          // Map index to frequency array
+          const freqIndex = Math.floor((i / 36) * (frequencyData.length * 0.6));
+          const val = frequencyData[freqIndex] || 0;
+          
+          // Map value to height
+          const barHeight = Math.max(3, (val / 255) * (canvas.height * 0.6) * waveAmplifier);
+          
+          const strokeColor = selectedColors[i % selectedColors.length];
+          ctx.fillStyle = strokeColor;
           ctx.shadowColor = strokeColor;
-          ctx.shadowBlur = 10 + waveAmplifier * 15;
-
-          const glowRadius = Math.min(canvas.width, canvas.height) * (0.6 + waveAmplifier * 0.8);
-          const gradient = ctx.createRadialGradient(
-            canvas.width / 2, canvas.height / 2, 0,
-            canvas.width / 2, canvas.height / 2, glowRadius
-          );
-          gradient.addColorStop(0, strokeColor.replace(/[\d\.]+\)$/, '0.14)'));
-          gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx.fillStyle = gradient;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          for (let x = 0; x < canvas.width; x++) {
-            const dataIndex = Math.floor((x / canvas.width) * bufferLength);
-            const v = realTimeData[dataIndex] / 128.0;
-            const phaseShift = w === 1 ? Math.sin(x * 0.05 + phase) * 5 : 0;
-            
-            const yOffset = (v - 1.0) * (canvas.height / 2) * 1.5 + phaseShift;
-            const y = canvas.height / 2 + yOffset;
-            
-            if (x === 0) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
-            }
-          }
-          ctx.stroke();
+          
+          const y = canvas.height - barHeight - 12;
+          ctx.beginPath();
+          ctx.roundRect(x, y, barWidth, barHeight, 2);
+          ctx.fill();
         }
+        
+        // 2. Draw ACTUAL real-time waveform line!
+        ctx.beginPath();
+        const strokeColor = selectedColors[0];
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = strokeColor;
+        ctx.shadowBlur = 10 + waveAmplifier * 15;
+
+        // Draw radial glow matching actual volume
+        const glowRadius = Math.min(canvas.width, canvas.height) * (0.6 + waveAmplifier * 0.8);
+        const gradient = ctx.createRadialGradient(
+          canvas.width / 2, canvas.height / 2, 0,
+          canvas.width / 2, canvas.height / 2, glowRadius
+        );
+        gradient.addColorStop(0, strokeColor.replace(/[\d\.]+\)$/, '0.14)'));
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const bufferLength = realTimeData.length;
+        for (let x = 0; x < canvas.width; x += 2) {
+          const dataIndex = Math.floor((x / canvas.width) * bufferLength);
+          const v = realTimeData[dataIndex] / 128.0;
+          const yOffset = (v - 1.0) * (canvas.height / 2) * 1.5;
+          const y = canvas.height / 2 + yOffset - 6;
+          
+          if (x === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
         phase += 0.04;
       } else {
         // Procedural simulation synced to track BPM
@@ -1613,69 +1638,79 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
         const beatIntensity = Math.exp(-beatPhase * 4.5);   // exponential decay envelope
         const pulseMultiplier = 1.0 + beatIntensity * 0.55; // pulsate height on beat
 
-        // Draw background rhythm glow flare
-        const glowRadius = Math.min(canvas.width, canvas.height) * (0.8 + beatIntensity * 0.5);
-        const gradient = ctx.createRadialGradient(
-          canvas.width / 2, canvas.height / 2, 0,
-          canvas.width / 2, canvas.height / 2, glowRadius
-        );
-        
-        const colors = {
-          synthWave: ['rgba(239, 68, 68, 0.16)', 'rgba(139, 92, 246, 0.0)'],
-          ambientMelody: ['rgba(52, 211, 153, 0.16)', 'rgba(45, 212, 191, 0.0)'],
-          subBass: ['rgba(219, 39, 119, 0.16)', 'rgba(79, 70, 229, 0.0)'],
-          jazzyGuitar: ['rgba(245, 158, 11, 0.16)', 'rgba(239, 68, 68, 0.0)'],
-          chillHarmonics: ['rgba(45, 212, 191, 0.16)', 'rgba(56, 189, 248, 0.0)']
+        const amplitudes = {
+          synthWave: 25,
+          ambientMelody: 15,
+          subBass: 35,
+          jazzyGuitar: 20,
+          chillHarmonics: 18
         };
-        const activeColor = colors[frequencyType as keyof typeof colors] || ['rgba(239, 68, 68, 0.16)', 'rgba(239, 68, 68, 0.0)'];
+
+        // 1. Draw glowing vertical frequency bars (equalizer spectrum)
+        const barWidth = Math.ceil(canvas.width / 36);
+        const gap = 2;
+        ctx.shadowBlur = 4 + beatIntensity * 8;
         
-        gradient.addColorStop(0, activeColor[0]);
-        gradient.addColorStop(1, activeColor[1]);
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        phase += 0.05 + beatIntensity * 0.04; // accelerate wave speed slightly on the beat!
-
-        for (let w = 0; w < wavesCount; w++) {
-          ctx.beginPath();
-          const strokeColor = selectedColors[w % selectedColors.length];
-          ctx.strokeStyle = strokeColor;
-          ctx.lineWidth = w === 0 ? 2.5 : 1.2;
-
-          ctx.shadowColor = strokeColor;
-          ctx.shadowBlur = 8 + beatIntensity * 14;
-
-          const amplitudes = {
-            synthWave: 25,
-            ambientMelody: 15,
-            subBass: 35,
-            jazzyGuitar: 20,
-            chillHarmonics: 18
-          };
-          const amplitudeFactor = amplitudes[frequencyType as keyof typeof amplitudes] || 20;
-
-          const frequencies = {
-            synthWave: 0.02,
-            ambientMelody: 0.01,
-            subBass: 0.005,
-            jazzyGuitar: 0.03,
-            chillHarmonics: 0.015
-          };
-          const frequencyFactor = frequencies[frequencyType as keyof typeof frequencies] || 0.02;
-
-          for (let x = 0; x < canvas.width; x++) {
-            const yOffset = Math.sin(x * frequencyFactor + phase + w * 1.5) * 
-                            Math.cos(x * 0.003 + phase * 0.5) * 
-                            amplitudeFactor * pulseMultiplier;
-            const y = canvas.height / 2 + yOffset;
-            if (x === 0) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
-            }
+        for (let i = 0; i < 36; i++) {
+          const x = i * (barWidth + gap);
+          
+          // Generate a complex frequency response for each bar
+          let baseHeight = 10;
+          if (i < 8) {
+            // Bass reacts heavily to the beat kicks!
+            baseHeight = (amplitudes[frequencyType as keyof typeof amplitudes] || 20) * 0.6 * beatIntensity * (1 + Math.sin(i * 0.5 + phase * 2.0));
+          } else if (i < 24) {
+            // Mids react to general melody waves
+            baseHeight = 12 * (1 + Math.sin(i * 0.3 + phase * 1.2)) * (0.8 + beatIntensity * 0.4);
+          } else {
+            // Highs have rapid nervous wiggles
+            baseHeight = 8 * (1 + Math.sin(i * 0.8 + phase * 3.5)) * (0.6 + beatIntensity * 0.6);
           }
-          ctx.stroke();
+          
+          // Add some random music jitter
+          const jitter = (Math.random() - 0.5) * 4;
+          const barHeight = Math.max(3, baseHeight + jitter);
+          
+          const strokeColor = selectedColors[i % selectedColors.length];
+          ctx.fillStyle = strokeColor;
+          ctx.shadowColor = strokeColor;
+          
+          const y = canvas.height - barHeight - 12;
+          ctx.beginPath();
+          ctx.roundRect(x, y, barWidth, barHeight, 2);
+          ctx.fill();
         }
+
+        // 2. Draw a nervous, twitching soundwave line running across the middle
+        ctx.beginPath();
+        const strokeColor = selectedColors[0];
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 2.0;
+        ctx.shadowColor = strokeColor;
+        ctx.shadowBlur = 10 + beatIntensity * 12;
+
+        phase += 0.12 + beatIntensity * 0.08; // speed up slightly on beat!
+
+        const amplitudeFactor = amplitudes[frequencyType as keyof typeof amplitudes] || 20;
+
+        for (let x = 0; x < canvas.width; x += 3) {
+          // Generate high frequency twitchy noise that mimics voice/music frequencies
+          const noise = Math.sin(x * 0.1 + phase * 2) * Math.cos(x * 0.05 - phase) * 2;
+          const beatKick = Math.sin(x * 0.02 + phase) * amplitudeFactor * pulseMultiplier;
+          
+          // Add a jitter factor
+          const jitter = (Math.random() - 0.5) * 4 * beatIntensity;
+          
+          const yOffset = (beatKick + noise + jitter) * 0.6;
+          const y = canvas.height / 2 + yOffset - 6;
+          
+          if (x === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.stroke();
       }
 
       ctx.shadowBlur = 0;
