@@ -1606,8 +1606,8 @@ export function DemandingChillies() {
   );
 }
 
-// Interactive procedurally rendered glowing Soundwave Canvas Visualizer block
-function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerRef, audioElementRef }: { frequencyType: string; isPlaying: boolean; bpm?: number; analyser?: AnalyserNode | null; ytPlayerRef?: React.RefObject<any>; audioElementRef?: React.RefObject<HTMLAudioElement | null> }) {
+// Interactive music-wave canvas visualizer block
+function RealtimeWaveCanvas({ frequencyType, isPlaying, analyser, ytPlayerRef, audioElementRef }: { frequencyType: string; isPlaying: boolean; bpm?: number; analyser?: AnalyserNode | null; ytPlayerRef?: React.RefObject<any>; audioElementRef?: React.RefObject<HTMLAudioElement | null> }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const lastYtTimeRef = React.useRef<number>(0);
   const lastSyncNowRef = React.useRef<number>(0);
@@ -1621,8 +1621,6 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
     if (!ctx) return;
 
     let animationId: number;
-    let phase = 0;
-
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
@@ -1642,7 +1640,6 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
       const audioEl = audioElementRef?.current;
       let activePlaying = isPlaying;
       let timeMs = performance.now();
-      let ytVolumeMultiplier = 1.0;
 
       // Only sync with audio element if it has a source loaded (prevents matching current page URL)
       if (audioEl && audioEl.src && audioEl.src !== window.location.href) {
@@ -1661,7 +1658,6 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
           } else {
             timeMs = audioTime;
           }
-          ytVolumeMultiplier = audioEl.muted ? 0.0 : audioEl.volume;
         } catch (e) {}
       } else if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function' && typeof ytPlayer.getPlayerState === 'function') {
         try {
@@ -1683,13 +1679,6 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
             timeMs = ytTime;
           }
 
-          // Check volume and mute status to scale the waves!
-          if (typeof ytPlayer.isMuted === 'function' && ytPlayer.isMuted()) {
-            ytVolumeMultiplier = 0.0;
-          } else if (typeof ytPlayer.getVolume === 'function') {
-            const vol = ytPlayer.getVolume(); // 0 to 100
-            ytVolumeMultiplier = vol / 100.0;
-          }
         } catch (e) {
           // fallback
         }
@@ -1870,93 +1859,33 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
           }
         }
         ctx.stroke();
-        phase += 0.04;
       } else {
-        // Procedural simulation synced to track BPM and YT Volume multiplier
-        const targetBpm = bpm || 90;
-        const beatPeriod = 60000 / targetBpm;
-        const beatPhase = (timeMs % beatPeriod) / beatPeriod; // 0 to 1
-        const beatIntensity = Math.exp(-beatPhase * 4.5) * ytVolumeMultiplier; // scale beat by volume!
-        const pulseMultiplier = 1.0 + beatIntensity * 0.55; // pulsate height on beat
-
-        const amplitudes = {
-          synthWave: 25,
-          ambientMelody: 15,
-          subBass: 35,
-          jazzyGuitar: 20,
-          chillHarmonics: 18
-        };
-
         const strokeColor = selectedColors[0];
         const barCount = 42;
         const barGap = 3;
         const barWidth = Math.max(3, (canvas.width - 44 - barGap * (barCount - 1)) / barCount);
         const barBaseY = canvas.height - 18;
-        phase = (timeMs / 1000) * (targetBpm / 60) * 2.0;
-
-        const glow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, Math.min(canvas.width, canvas.height) * (0.7 + beatIntensity));
-        glow.addColorStop(0, strokeColor.replace(/[\d.]+\)$/, `${0.12 + beatIntensity * 0.28})`));
-        glow.addColorStop(0.58, selectedColors[1]);
-        glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = glow;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        for (let i = 0; i < barCount; i++) {
-          const lanePhase = phase + i * 0.42;
-          const value = Math.abs(Math.sin(lanePhase) * 0.58 + Math.cos(lanePhase * 0.57) * 0.24) + beatIntensity * 0.82;
-          const barHeight = Math.min(canvas.height * 0.55, Math.max(5, value * (canvas.height * 0.34) * ytVolumeMultiplier));
-          const x = 22 + i * (barWidth + barGap);
-          const y = barBaseY - barHeight;
-          const barGradient = ctx.createLinearGradient(0, y, 0, barBaseY);
-          barGradient.addColorStop(0, selectedColors[0]);
-          barGradient.addColorStop(0.55, selectedColors[1]);
-          barGradient.addColorStop(1, 'rgba(255, 255, 255, 0.08)');
-          ctx.fillStyle = barGradient;
-          ctx.fillRect(x, y, barWidth, barHeight);
-        }
 
         ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(phase * 0.16);
-        ctx.strokeStyle = selectedColors[0];
-        ctx.lineWidth = 2;
-        ctx.shadowColor = selectedColors[0];
-        ctx.shadowBlur = 14 + beatIntensity * 22;
-        ctx.beginPath();
-        ctx.arc(0, 0, baseRadius + beatIntensity * 20, 0.2, Math.PI * 1.65);
-        ctx.stroke();
-        ctx.strokeStyle = selectedColors[2];
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.arc(0, 0, baseRadius * 0.62 + beatIntensity * 12, Math.PI * 0.22, Math.PI * 1.04);
-        ctx.stroke();
+        ctx.globalAlpha = 0.28;
+        for (let i = 0; i < barCount; i++) {
+          const x = 22 + i * (barWidth + barGap);
+          ctx.fillStyle = i % 4 === 0 ? selectedColors[1] : 'rgba(255, 255, 255, 0.08)';
+          ctx.fillRect(x, barBaseY - 5, barWidth, 5);
+        }
         ctx.restore();
 
-        // Draw procedural waveform line over the music graphic.
         ctx.beginPath();
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 2.5;
-        ctx.shadowColor = strokeColor;
-        ctx.shadowBlur = 10 + beatIntensity * 12;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+        ctx.lineWidth = 1.5;
+        ctx.moveTo(24, centerY);
+        ctx.lineTo(canvas.width - 24, centerY);
+        ctx.stroke();
 
-        const amplitudeFactor = (amplitudes[frequencyType as keyof typeof amplitudes] || 20) * ytVolumeMultiplier;
-
-        for (let x = 0; x < canvas.width; x += 3) {
-          // Generate high frequency twitchy noise that mimics voice/music frequencies
-          const noise = Math.sin(x * 0.1 + phase * 2) * Math.cos(x * 0.05 - phase) * 2 * ytVolumeMultiplier;
-          const beatKick = Math.sin(x * 0.02 + phase) * amplitudeFactor * pulseMultiplier;
-          
-          const jitter = Math.sin(x * 0.73 + phase * 5.7) * Math.cos(x * 0.19 - phase * 3.1) * 2 * beatIntensity;
-          
-          const yOffset = (beatKick + noise + jitter) * 0.6;
-          const y = canvas.height / 2 + yOffset - 6;
-          
-          if (x === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
-        }
+        ctx.beginPath();
+        ctx.strokeStyle = strokeColor.replace(/[\d.]+\)$/, '0.22)');
+        ctx.lineWidth = 2;
+        ctx.arc(centerX, centerY, baseRadius, 0, Math.PI * 2);
         ctx.stroke();
       }
 
@@ -1970,14 +1899,14 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
       cancelAnimationFrame(animationId);
       resizeObserver.disconnect();
     };
-  }, [frequencyType, isPlaying, bpm, analyser, ytPlayerRef, audioElementRef]);
+  }, [frequencyType, isPlaying, analyser, ytPlayerRef, audioElementRef]);
 
   return (
     <div className="w-full h-36 bg-black/40 rounded-xl relative overflow-hidden border border-white/5 flex flex-col justify-end p-2 shadow-inner">
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <span className="relative font-mono text-[9px] uppercase text-zinc-500 tracking-wider flex items-center gap-1">
         <Radio size={10} className={isPlaying ? 'text-red-500 animate-pulse' : ''} />
-        {isPlaying ? (analyser ? "Music Sync Graphics Active" : `Music Sync Graphics: ${bpm || 90} BPM`) : 'Ready to stream'}
+        {isPlaying ? (analyser ? "Music Wave Sync Active" : "Waiting for music wave") : 'Ready to stream'}
       </span>
     </div>
   );
