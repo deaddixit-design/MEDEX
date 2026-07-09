@@ -2697,13 +2697,13 @@ Analyze the user's mood inputs, do a sophisticated mood "vibe check", and return
 2. "moodSummary": a poetic, human, and encouraging 1-2 sentence description of their current state.
 3. "colorPalette": tailwind css styles for background primary ("bg-rose-950" etc), text ("text-rose-400" etc), and border colors ("border-rose-500/20") that resonate with this mood. Let these be highly premium, deep, moody dark background colors (dark slate, dark red, dark teal, dark indigo).
 4. "scores": analytical scores (0 to 100) for "happiness", "energy", "focus", and "calm".
-5. "playlist": a smart customized selection of exactly 3-4 songs.
+5. "playlist": a smart customized selection of exactly 5-6 songs.
    We have a pool of existing tracks from our campus database. If any of these fits the mood, you MUST prefer using them. Match them dynamically based on their titles, descriptions, and category!
    - Available Tracks Pool: ${JSON.stringify(songPool)}
    
    If enough pool tracks don't match, or you want to expand, you should suggest newly inspired virtual songs with 'id' set to null and 'link' to a reasonable YouTube search query or link, but with wonderful titles and descriptions.
 
-CRITICAL DIRECTIVE FOR SEARCH QUERIES: If the user's input specifies or searches for a particular song title, artist, movie, or music query (for example: "Akela Hai Mr Khiladi", "lofi beats", "jazz brass", "milne ki tum kosis karna"), do not treat it as a general emotional state. You MUST prioritize matching or generating a playlist that includes that exact requested song or artist. If the requested item is not in our Available Tracks Pool, you MUST create a virtual song recommendation for that exact song/artist request as the primary result. In addition, you must generate 2-3 other related virtual tracks (such as remixes, cover versions, or other hit tracks by the same artist/genre) so the user gets a complete playlist of results matching their search query. Ensure all links point to search queries that resolve to those specific songs on YouTube.
+CRITICAL DIRECTIVE FOR SEARCH QUERIES: If the user's input specifies or searches for a particular song title, artist, movie, or music query (for example: "Akela Hai Mr Khiladi", "lofi beats", "jazz brass", "milne ki tum kosis karna"), do not treat it as a general emotional state. You MUST prioritize matching or generating a playlist that includes that exact requested song or artist. If the requested item is not in our Available Tracks Pool, you MUST search for or create a virtual song recommendation for that exact original song/artist request as the primary result, ensuring the title and artist match the original track. In addition, you must suggest 4-5 other related virtual tracks (such as remixes, cover versions, acoustic sessions, or other hit tracks by the same artist or from the same movie/album) so the user gets a comprehensive list of 5-6 results matching their search query. Ensure all links point to search queries that resolve to those specific songs on YouTube.
    
 For each song in the playlist, provide:
 - "id": number (for pool songs) or null (for virtual songs)
@@ -4192,9 +4192,11 @@ function getProceduralFallbackResponse(mood: string) {
       }));
     } else {
       songs = [
-        { title: mood, artist: 'VIBE AI Requested Track', vibeStyle: 'Search Result', bpm: 90, freq: 'ambientMelody' },
-        { title: `${mood} (Remix)`, artist: 'VIBE DJ Club Version', vibeStyle: 'Dance Mix', bpm: 120, freq: 'synthWave' },
-        { title: `${mood} (Lofi Version)`, artist: 'The Campus Lofi Syndicate', vibeStyle: 'Lofi Chill', bpm: 75, freq: 'chillHarmonics' }
+        { title: mood, artist: 'Original Song Request', vibeStyle: 'Original', bpm: 90, freq: 'ambientMelody' },
+        { title: `${mood} (Lofi Chill Version)`, artist: 'The Campus Lofi Syndicate', vibeStyle: 'Lofi Chill', bpm: 72, freq: 'chillHarmonics' },
+        { title: `${mood} (Acoustic Cover)`, artist: 'Acoustic Guitar Club', vibeStyle: 'Acoustic', bpm: 80, freq: 'jazzyGuitar' },
+        { title: `${mood} (Slowed & Reverb)`, artist: 'Reverb Room Session', vibeStyle: 'Slowed & Reverb', bpm: 68, freq: 'ambientMelody' },
+        { title: `${mood} (VIBE DJ Remix)`, artist: 'DJ Neon & Club Beats', vibeStyle: 'Dance Remix', bpm: 125, freq: 'synthWave' }
       ];
     }
   }
