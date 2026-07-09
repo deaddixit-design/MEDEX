@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Music, Camera, Video, ArrowLeft, ExternalLink, Flame, Wind, Guitar, Mic2, Speaker, Disc, Headphones, Play, Pause, Maximize2, X, Eye, Sparkles, Smile, BarChart3, HelpCircle, History, RefreshCw, Send, Radio, Plus, Check } from 'lucide-react';
+import { Music, Camera, Video, ArrowLeft, ExternalLink, Flame, Wind, Guitar, Mic2, Speaker, Disc, Headphones, Play, Pause, Maximize2, X, Eye, Sparkles, Smile, BarChart3, HelpCircle, History, RefreshCw, Send, Radio, Plus, Check, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DemandingItem } from '../types';
@@ -53,6 +53,11 @@ export function DemandingChillies() {
   const [synthesizerStep, setSynthesizerStep] = useState<string>('');
   const [addedItems, setAddedItems] = useState<Record<string, boolean>>({});
   const [addingTrackKey, setAddingTrackKey] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    setSearchQuery('');
+  }, [activeSection]);
 
   const handleAddToList = async (e: React.MouseEvent, track: any, type: 'song' | 'videography') => {
     e.stopPropagation();
@@ -374,9 +379,23 @@ export function DemandingChillies() {
   const videoStyles = getStylesForType(allVideos);
   const photoStyles = getStylesForType(allPhotos);
 
-  const songs = audioStyle === 'All' ? allSongs : allSongs.filter(item => (item.category || 'Trending') === audioStyle);
-  const videography = videoStyle === 'All' ? allVideos : allVideos.filter(item => (item.category || 'Trending') === videoStyle);
-  const photography = photoStyle === 'All' ? allPhotos : allPhotos.filter(item => (item.category || 'Trending') === photoStyle);
+  const filterBySearch = (itemList: DemandingItem[]) => {
+    if (!searchQuery.trim()) return itemList;
+    const needle = searchQuery.toLowerCase().trim();
+    return itemList.filter(item => 
+      (item.title && item.title.toLowerCase().includes(needle)) ||
+      (item.description && item.description.toLowerCase().includes(needle)) ||
+      (item.category && item.category.toLowerCase().includes(needle))
+    );
+  };
+
+  const filteredAllSongs = filterBySearch(allSongs);
+  const filteredAllVideos = filterBySearch(allVideos);
+  const filteredAllPhotos = filterBySearch(allPhotos);
+
+  const songs = audioStyle === 'All' ? filteredAllSongs : filteredAllSongs.filter(item => (item.category || 'Trending') === audioStyle);
+  const videography = videoStyle === 'All' ? filteredAllVideos : filteredAllVideos.filter(item => (item.category || 'Trending') === videoStyle);
+  const photography = photoStyle === 'All' ? filteredAllPhotos : filteredAllPhotos.filter(item => (item.category || 'Trending') === photoStyle);
 
   const getDirectUrl = (url: string) => {
     if (!url) return '';
@@ -583,6 +602,29 @@ export function DemandingChillies() {
 
           return (
             <div className="space-y-12 md:space-y-20 mt-12 md:mt-16">
+              {activeSection !== 'vibe' && (
+                <div className="relative max-w-md w-full">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-500">
+                    <Search size={16} />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={`Search ${activeSection === 'audio' ? 'songs' : activeSection === 'video' ? 'videos' : 'photos'} by title, style, or description...`}
+                    className="w-full bg-zinc-900/50 backdrop-blur-xl border border-white/5 rounded-2xl py-3 pl-11 pr-10 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-red-650/45 focus:ring-1 focus:ring-red-650/30 transition-all font-medium shadow-lg"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-zinc-500 hover:text-white transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              )}
+
               <AnimatePresence mode="wait">
                 {activeSection === 'audio' && (
                   <motion.section
