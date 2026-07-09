@@ -1123,7 +1123,11 @@ export function DemandingChillies() {
                                   </div>
                                 </div>
 
-                                <RealtimeWaveCanvas frequencyType={activeVibeSong.audioFrequency || "ambientMelody"} isPlaying={proceduralAudioPlaying} />
+                                <RealtimeWaveCanvas 
+                                   frequencyType={activeVibeSong.audioFrequency || "ambientMelody"} 
+                                   isPlaying={proceduralAudioPlaying} 
+                                   bpm={activeVibeSong.bpm}
+                                 />
 
                                 {isDirectAudioLink(activeVibeSong.link) && (
                                   <div className="bg-black/30 p-2.5 rounded-2xl border border-white/5">
@@ -1397,7 +1401,7 @@ export function DemandingChillies() {
 }
 
 // Interactive procedurally rendered glowing Soundwave Canvas Visualizer block
-function RealtimeWaveCanvas({ frequencyType, isPlaying }: { frequencyType: string; isPlaying: boolean }) {
+function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm }: { frequencyType: string; isPlaying: boolean; bpm?: number }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   React.useEffect(() => {
@@ -1420,34 +1424,69 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying }: { frequencyType: strin
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      const now = performance.now();
+      const targetBpm = bpm || 90;
+      const beatPeriod = 60000 / targetBpm;
+      const beatPhase = (now % beatPeriod) / beatPeriod; // 0 to 1
+      const beatIntensity = Math.exp(-beatPhase * 4.5);   // exponential decay envelope
+      const pulseMultiplier = 1.0 + beatIntensity * 0.55; // pulsate height on beat
+
       if (!isPlaying) {
         // Draw flat line with subtle wave
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(239, 68, 68, 0.2)';
         ctx.lineWidth = 1.5;
+        ctx.shadowBlur = 0;
         ctx.moveTo(0, canvas.height / 2);
         ctx.lineTo(canvas.width, canvas.height / 2);
         ctx.stroke();
+        animationId = requestAnimationFrame(draw);
         return;
       }
 
-      phase += 0.05;
+      // Draw background rhythm glow flare
+      const glowRadius = Math.min(canvas.width, canvas.height) * (0.8 + beatIntensity * 0.5);
+      const gradient = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, 0,
+        canvas.width / 2, canvas.height / 2, glowRadius
+      );
+      
+      const colors = {
+        synthWave: ['rgba(239, 68, 68, 0.16)', 'rgba(139, 92, 246, 0.0)'],
+        ambientMelody: ['rgba(52, 211, 153, 0.16)', 'rgba(45, 212, 191, 0.0)'],
+        subBass: ['rgba(219, 39, 119, 0.16)', 'rgba(79, 70, 229, 0.0)'],
+        jazzyGuitar: ['rgba(245, 158, 11, 0.16)', 'rgba(239, 68, 68, 0.0)'],
+        chillHarmonics: ['rgba(45, 212, 191, 0.16)', 'rgba(56, 189, 248, 0.0)']
+      };
+      const activeColor = colors[frequencyType as keyof typeof colors] || ['rgba(239, 68, 68, 0.16)', 'rgba(239, 68, 68, 0.0)'];
+      
+      gradient.addColorStop(0, activeColor[0]);
+      gradient.addColorStop(1, activeColor[1]);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      phase += 0.05 + beatIntensity * 0.04; // accelerate wave speed slightly on the beat!
 
       const wavesCount = frequencyType === 'ambientMelody' || frequencyType === 'chillHarmonics' ? 2 : 4;
       const waveColors = {
-        synthWave: ['rgba(239, 68, 68, 0.8)', 'rgba(236, 72, 153, 0.5)', 'rgba(139, 92, 246, 0.3)'],
-        ambientMelody: ['rgba(52, 211, 153, 0.7)', 'rgba(45, 212, 191, 0.4)'],
-        subBass: ['rgba(219, 39, 119, 0.8)', 'rgba(124, 58, 237, 0.5)', 'rgba(79, 70, 229, 0.3)'],
-        jazzyGuitar: ['rgba(245, 158, 11, 0.8)', 'rgba(239, 68, 68, 0.4)', 'rgba(244, 63, 94, 0.2)'],
-        chillHarmonics: ['rgba(45, 212, 191, 0.6)', 'rgba(56, 189, 248, 0.4)']
+        synthWave: ['rgba(239, 68, 68, 0.85)', 'rgba(236, 72, 153, 0.65)', 'rgba(139, 92, 246, 0.45)'],
+        ambientMelody: ['rgba(52, 211, 153, 0.8)', 'rgba(45, 212, 191, 0.5)'],
+        subBass: ['rgba(219, 39, 119, 0.85)', 'rgba(124, 58, 237, 0.6)', 'rgba(79, 70, 229, 0.4)'],
+        jazzyGuitar: ['rgba(245, 158, 11, 0.85)', 'rgba(239, 68, 68, 0.55)', 'rgba(244, 63, 94, 0.35)'],
+        chillHarmonics: ['rgba(45, 212, 191, 0.75)', 'rgba(56, 189, 248, 0.5)']
       };
 
-      const selectedColors = waveColors[frequencyType as keyof typeof waveColors] || ['rgba(239, 68, 68, 0.6)', 'rgba(239, 68, 68, 0.2)'];
+      const selectedColors = waveColors[frequencyType as keyof typeof waveColors] || ['rgba(239, 68, 68, 0.7)', 'rgba(239, 68, 68, 0.3)'];
 
       for (let w = 0; w < wavesCount; w++) {
         ctx.beginPath();
-        ctx.strokeStyle = selectedColors[w % selectedColors.length];
-        ctx.lineWidth = w === 0 ? 2 : 1;
+        const strokeColor = selectedColors[w % selectedColors.length];
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = w === 0 ? 2.5 : 1.2;
+
+        // Apply neon glow effect matching the beat intensity!
+        ctx.shadowColor = strokeColor;
+        ctx.shadowBlur = 8 + beatIntensity * 14;
 
         const amplitudes = {
           synthWave: 25,
@@ -1470,7 +1509,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying }: { frequencyType: strin
         for (let x = 0; x < canvas.width; x++) {
           const yOffset = Math.sin(x * frequencyFactor + phase + w * 1.5) * 
                           Math.cos(x * 0.003 + phase * 0.5) * 
-                          amplitudeFactor;
+                          amplitudeFactor * pulseMultiplier;
           const y = canvas.height / 2 + yOffset;
           if (x === 0) {
             ctx.moveTo(x, y);
@@ -1481,6 +1520,9 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying }: { frequencyType: strin
         ctx.stroke();
       }
 
+      // Reset shadow blur to avoid canvas drawing bleed
+      ctx.shadowBlur = 0;
+
       animationId = requestAnimationFrame(draw);
     };
 
@@ -1490,14 +1532,14 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying }: { frequencyType: strin
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', resize);
     };
-  }, [frequencyType, isPlaying]);
+  }, [frequencyType, isPlaying, bpm]);
 
   return (
-    <div className="w-full h-24 bg-black/40 rounded-xl relative overflow-hidden border border-white/5 flex flex-col justify-end p-2">
+    <div className="w-full h-24 bg-black/40 rounded-xl relative overflow-hidden border border-white/5 flex flex-col justify-end p-2 shadow-inner">
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <span className="relative font-mono text-[9px] uppercase text-zinc-500 tracking-wider flex items-center gap-1">
         <Radio size={10} className={isPlaying ? 'text-red-500 animate-pulse' : ''} />
-        {isPlaying ? `Modulation Level: ${frequencyType}` : 'Ready to stream'}
+        {isPlaying ? `Modulation Level: ${frequencyType} • ${bpm || 90} BPM` : 'Ready to stream'}
       </span>
     </div>
   );
