@@ -124,6 +124,9 @@ export function DemandingChillies() {
 
   const vibeAudioRef = React.useRef<HTMLAudioElement | null>(null);
   const synthContextRef = React.useRef<AudioContext | null>(null);
+  const mediaContextRef = React.useRef<AudioContext | null>(null);
+  const listMediaContextRef = React.useRef<AudioContext | null>(null);
+  const synthAnalyserRef = React.useRef<AnalyserNode | null>(null);
   const synthNodesRef = React.useRef<any[]>([]);
 
   // Web Audio Analyser references
@@ -136,10 +139,10 @@ export function DemandingChillies() {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
 
-      if (!synthContextRef.current) {
-        synthContextRef.current = new AudioCtx();
+      if (!mediaContextRef.current) {
+        mediaContextRef.current = new AudioCtx();
       }
-      const ctx = synthContextRef.current;
+      const ctx = mediaContextRef.current;
 
       if (ctx.state === 'suspended') {
         ctx.resume();
@@ -165,6 +168,12 @@ export function DemandingChillies() {
   const [listAnalyser, setListAnalyser] = useState<AnalyserNode | null>(null);
 
   useEffect(() => {
+    if (listMediaContextRef.current) {
+      try {
+        listMediaContextRef.current.close();
+      } catch {}
+      listMediaContextRef.current = null;
+    }
     listAudioSourceRef.current = null;
     setListAnalyser(null);
     setListAudioPlaying(false);
@@ -176,10 +185,10 @@ export function DemandingChillies() {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
 
-      if (!synthContextRef.current) {
-        synthContextRef.current = new AudioCtx();
+      if (!listMediaContextRef.current) {
+        listMediaContextRef.current = new AudioCtx();
       }
-      const ctx = synthContextRef.current;
+      const ctx = listMediaContextRef.current;
 
       if (ctx.state === 'suspended') {
         ctx.resume();
@@ -243,7 +252,14 @@ export function DemandingChillies() {
     const checkAPI = () => {
       if ((window as any).YT && (window as any).YT.Player) {
         try {
-          listYtPlayerRef.current = new (window as any).YT.Player(iframe);
+          listYtPlayerRef.current = new (window as any).YT.Player(iframe, {
+            events: {
+              onStateChange: (event: any) => {
+                const state = event.data;
+                setListAudioPlaying(state === 1 || state === 3);
+              }
+            }
+          });
         } catch (e) {
           console.warn('List YT Player initialization failed:', e);
         }
@@ -288,6 +304,7 @@ export function DemandingChillies() {
 
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
+      synthAnalyserRef.current = analyser;
 
       filter.connect(dynamicsCompressor);
       dynamicsCompressor.connect(analyser);
@@ -421,8 +438,8 @@ export function DemandingChillies() {
       synthContextRef.current = null;
     }
 
-    audioSourceRef.current = null;
-    setActiveAnalyser(null);
+    setActiveAnalyser(prev => (prev === synthAnalyserRef.current ? null : prev));
+    synthAnalyserRef.current = null;
   };
 
   // Sync Audios state (both native and synthesised)
@@ -875,7 +892,7 @@ export function DemandingChillies() {
                                               <div className="space-y-4">
                                                 <RealtimeWaveCanvas 
                                                   frequencyType="synthWave" 
-                                                  isPlaying={true} 
+                                                  isPlaying={listAudioPlaying} 
                                                   bpm={90} 
                                                   analyser={null}
                                                   ytPlayerRef={listYtPlayerRef}
@@ -1745,32 +1762,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
       }
 
       if (analyser && hasRealAudioData && realTimeData.length > 0) {
-        // 1. Draw ACTUAL real-time frequency equalizer bars!
-        const barWidth = Math.ceil(canvas.width / 36);
-        const gap = 2;
-        ctx.shadowBlur = 4 + waveAmplifier * 8;
-        
-        for (let i = 0; i < 36; i++) {
-          const x = i * (barWidth + gap);
-          
-          // Map index to frequency array
-          const freqIndex = Math.floor((i / 36) * (frequencyData.length * 0.6));
-          const val = frequencyData[freqIndex] || 0;
-          
-          // Map to height - if waveAmplifier is near 0, height is 0
-          const barHeight = Math.max(3, (val / 255) * (canvas.height * 0.6) * waveAmplifier);
-          
-          const strokeColor = selectedColors[i % selectedColors.length];
-          ctx.fillStyle = strokeColor;
-          ctx.shadowColor = strokeColor;
-          
-          const y = canvas.height - barHeight - 12;
-          ctx.beginPath();
-          ctx.roundRect(x, y, barWidth, barHeight, 2);
-          ctx.fill();
-        }
-        
-        // 2. Draw ACTUAL real-time waveform line!
+        // Draw ACTUAL real-time waveform line
         ctx.beginPath();
         const strokeColor = selectedColors[0];
         ctx.strokeStyle = strokeColor;
@@ -1822,42 +1814,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
           chillHarmonics: 18
         };
 
-        // 1. Draw glowing vertical frequency bars (equalizer spectrum)
-        const barWidth = Math.ceil(canvas.width / 36);
-        const gap = 2;
-        ctx.shadowBlur = 4 + beatIntensity * 8;
-        
-        for (let i = 0; i < 36; i++) {
-          const x = i * (barWidth + gap);
-          
-          // Generate a complex frequency response for each bar
-          let baseHeight = 10;
-          if (i < 8) {
-            // Bass reacts heavily to the beat kicks!
-            baseHeight = (amplitudes[frequencyType as keyof typeof amplitudes] || 20) * 0.6 * beatIntensity * (1 + Math.sin(i * 0.5 + phase * 2.0));
-          } else if (i < 24) {
-            // Mids react to general melody waves
-            baseHeight = 12 * (1 + Math.sin(i * 0.3 + phase * 1.2)) * (0.8 + beatIntensity * 0.4);
-          } else {
-            // Highs have rapid nervous wiggles
-            baseHeight = 8 * (1 + Math.sin(i * 0.8 + phase * 3.5)) * (0.6 + beatIntensity * 0.6);
-          }
-          
-          // Add some random music jitter
-          const jitter = (Math.random() - 0.5) * 4 * ytVolumeMultiplier;
-          const barHeight = Math.max(3, (baseHeight + jitter) * ytVolumeMultiplier);
-          
-          const strokeColor = selectedColors[i % selectedColors.length];
-          ctx.fillStyle = strokeColor;
-          ctx.shadowColor = strokeColor;
-          
-          const y = canvas.height - barHeight - 12;
-          ctx.beginPath();
-          ctx.roundRect(x, y, barWidth, barHeight, 2);
-          ctx.fill();
-        }
-
-        // 2. Draw procedural waveform line!
+        // Draw procedural waveform line!
         ctx.beginPath();
         const strokeColor = selectedColors[0];
         ctx.strokeStyle = strokeColor;
@@ -1874,8 +1831,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
           const noise = Math.sin(x * 0.1 + phase * 2) * Math.cos(x * 0.05 - phase) * 2 * ytVolumeMultiplier;
           const beatKick = Math.sin(x * 0.02 + phase) * amplitudeFactor * pulseMultiplier;
           
-          // Add a jitter factor
-          const jitter = (Math.random() - 0.5) * 4 * beatIntensity;
+          const jitter = Math.sin(x * 0.73 + phase * 5.7) * Math.cos(x * 0.19 - phase * 3.1) * 2 * beatIntensity;
           
           const yOffset = (beatKick + noise + jitter) * 0.6;
           const y = canvas.height / 2 + yOffset - 6;
