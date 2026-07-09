@@ -2784,7 +2784,7 @@ User's described mood: "${mood}"
           playlistData.playlist.map(async (track: any) => {
             if (track.link && (track.link.includes('results') || track.link.includes('search_query') || !track.id)) {
               // If it's a search results page or doesn't look like a direct video link, resolve it
-              const isWatchLink = track.link.includes('youtube.com/watch') || track.link.includes('youtu.be/');
+              const isWatchLink = (track.link.includes('youtube.com/watch') || track.link.includes('youtu.be/')) && !track.link.includes('/shorts/');
               if (!isWatchLink) {
                 const query = `${track.title} ${track.artist}`;
                 const realLink = await searchYoutubeVideo(query);
@@ -4093,17 +4093,62 @@ startServer();
 // Search YouTube to resolve search query to real watch video link
 async function searchYoutubeVideo(query: string): Promise<string> {
   try {
-    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    let searchQuery = query;
+    const genericArtists = [
+      'Original Song Request',
+      'VIBE AI Requested Track',
+      'VIBE DJ Club Version',
+      'The Campus Lofi Syndicate',
+      'Acoustic Guitar Club',
+      'Reverb Room Session',
+      'DJ Neon & Club Beats',
+      'Campus Database Track',
+      'Symphonic Club v2',
+      'The Chillies Collective',
+      'The Red-Hot Trombone Crew',
+      'DJ Synthesist',
+      'Udaan Beats',
+      'Guitar Strings Deluxe',
+      'Smoky Quartet',
+      'The Code & Chill Combo',
+      'Saxophone Intellect',
+      'Synthesized Calm'
+    ];
+    
+    // Cleanse query by stripping generic procedural artists
+    for (const artist of genericArtists) {
+      const regex = new RegExp(artist, 'gi');
+      searchQuery = searchQuery.replace(regex, '');
+    }
+    searchQuery = searchQuery.replace(/\s+/g, ' ').trim();
+
+    const lower = searchQuery.toLowerCase();
+    // Auto-append keywords to target original full song tracks and avoid shorts clips
+    if (!lower.includes('official') && !lower.includes('original') && !lower.includes('song') && !lower.includes('audio') && !lower.includes('video') && !lower.includes('full')) {
+      searchQuery = `${searchQuery} original full audio song`;
+    }
+
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
     const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
       }
     });
-    if (!res.ok) return url;
+    if (!res.ok) return `https://youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
+    
     const text = await res.text();
-    const match = text.match(/\"\/watch\?v=([a-zA-Z0-9_-]{11})\"/);
-    if (match && match[1]) {
-      return `https://www.youtube.com/watch?v=${match[1]}`;
+    // Match watch and shorts link formats in the search results html
+    const watchRegex = /\/(watch\?v=|shorts\/)([a-zA-Z0-9_-]{11})/g;
+    const matches = [...text.matchAll(watchRegex)];
+    
+    for (const match of matches) {
+      const type = match[1];      // "watch?v=" or "shorts/"
+      const videoId = match[2];    // 11 character ID
+      
+      if (type.startsWith('watch')) {
+        // Return first regular video watch URL, omitting shorts
+        return `https://www.youtube.com/watch?v=${videoId}`;
+      }
     }
   } catch (err) {
     console.error('Error searching YouTube:', err);
