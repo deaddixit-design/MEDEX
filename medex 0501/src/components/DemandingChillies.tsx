@@ -323,8 +323,13 @@ export function DemandingChillies() {
       dynamicsCompressor.attack.setValueAtTime(0.003, ctx.currentTime);
       dynamicsCompressor.release.setValueAtTime(0.25, ctx.currentTime);
 
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+
       filter.connect(dynamicsCompressor);
-      dynamicsCompressor.connect(ctx.destination);
+      dynamicsCompressor.connect(analyser);
+      analyser.connect(ctx.destination);
+      setActiveAnalyser(analyser);
 
       const mainGain = ctx.createGain();
       mainGain.gain.setValueAtTime(0.12, ctx.currentTime);
@@ -452,6 +457,9 @@ export function DemandingChillies() {
       } catch {}
       synthContextRef.current = null;
     }
+
+    audioSourceRef.current = null;
+    setActiveAnalyser(null);
   };
 
   // Sync Audios state (both native and synthesised)
@@ -1347,22 +1355,20 @@ export function DemandingChillies() {
                                     ytPlayerRef={ytPlayerRef}
                                   />
 
-                                {isDirectAudioLink(activeVibeSong.link) && (
-                                  <div className="bg-black/30 p-2.5 rounded-2xl border border-white/5">
-                                    <audio 
-                                      ref={vibeAudioRef}
-                                      src={getDirectUrl(activeVibeSong.link)}
-                                      controls
-                                      crossOrigin="anonymous"
-                                      className="w-full h-10"
-                                      onPlay={() => {
-                                        setupAudioAnalyser();
-                                        setProceduralAudioPlaying(true);
-                                      }}
-                                      onPause={() => setProceduralAudioPlaying(false)}
-                                    />
-                                  </div>
-                                )}
+                                  <div className={cn("bg-black/30 p-2.5 rounded-2xl border border-white/5", !isDirectAudioLink(activeVibeSong.link) && "hidden")}>
+                                   <audio 
+                                     ref={vibeAudioRef}
+                                     src={isDirectAudioLink(activeVibeSong.link) ? getDirectUrl(activeVibeSong.link) : ""}
+                                     controls
+                                     crossOrigin="anonymous"
+                                     className="w-full h-10"
+                                     onPlay={() => {
+                                       setupAudioAnalyser();
+                                       setProceduralAudioPlaying(true);
+                                     }}
+                                     onPause={() => setProceduralAudioPlaying(false)}
+                                   />
+                                 </div>
 
                                 {isYoutube(activeVibeSong.link) && (
                                   <div className="bg-black/30 p-2.5 rounded-2xl border border-white/5 space-y-2.5">
@@ -1628,6 +1634,8 @@ export function DemandingChillies() {
 // Interactive procedurally rendered glowing Soundwave Canvas Visualizer block
 function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerRef }: { frequencyType: string; isPlaying: boolean; bpm?: number; analyser?: AnalyserNode | null; ytPlayerRef?: React.RefObject<any> }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const lastYtTimeRef = React.useRef<number>(0);
+  const lastSyncNowRef = React.useRef<number>(0);
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
@@ -1659,7 +1667,20 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
           const state = ytPlayer.getPlayerState();
           // state 1 = playing, 3 = buffering
           activePlaying = (state === 1 || state === 3);
-          timeMs = ytPlayer.getCurrentTime() * 1000;
+          
+          const ytTime = ytPlayer.getCurrentTime() * 1000;
+          const now = performance.now();
+          if (activePlaying) {
+            if (lastYtTimeRef.current !== ytTime) {
+              lastYtTimeRef.current = ytTime;
+              lastSyncNowRef.current = now;
+            }
+            const elapsed = now - lastSyncNowRef.current;
+            const safeElapsed = Math.min(elapsed, 500); // prevent drift
+            timeMs = ytTime + safeElapsed;
+          } else {
+            timeMs = ytTime;
+          }
 
           // Check volume and mute status to scale the waves!
           if (typeof ytPlayer.isMuted === 'function' && ytPlayer.isMuted()) {
