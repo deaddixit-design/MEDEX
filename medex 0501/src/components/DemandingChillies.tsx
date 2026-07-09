@@ -56,6 +56,20 @@ export function DemandingChillies() {
   const [searchQuery, setSearchQuery] = useState('');
   const [playMode, setPlayMode] = useState<'video' | 'audio'>('video');
 
+  // YouTube player refs for synchronization
+  const ytPlayerRef = React.useRef<any>(null);
+  const listYtPlayerRef = React.useRef<any>(null);
+
+  // Load YouTube Iframe API once
+  useEffect(() => {
+    if (!(window as any).YT) {
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+  }, []);
+
   useEffect(() => {
     setSearchQuery('');
   }, [activeSection]);
@@ -179,6 +193,61 @@ export function DemandingChillies() {
     } catch (err) {
       console.warn('Web Audio API list analyser setup failed:', err);
     }
+  };
+
+  // Reset players on song transitions
+  useEffect(() => {
+    ytPlayerRef.current = null;
+  }, [activeVibeSong]);
+
+  useEffect(() => {
+    listYtPlayerRef.current = null;
+  }, [activeItemId]);
+
+  const initYTPlayer = (iframe: HTMLIFrameElement | null) => {
+    if (!iframe) return;
+    
+    const checkAPI = () => {
+      if ((window as any).YT && (window as any).YT.Player) {
+        try {
+          ytPlayerRef.current = new (window as any).YT.Player(iframe, {
+            events: {
+              onStateChange: (event: any) => {
+                const state = event.data;
+                // 1 = playing, 2 = paused, 0 = ended
+                if (state === 1) {
+                  setProceduralAudioPlaying(true);
+                } else if (state === 2 || state === 0) {
+                  setProceduralAudioPlaying(false);
+                }
+              }
+            }
+          });
+        } catch (e) {
+          console.warn('YT Player initialization failed:', e);
+        }
+      } else {
+        setTimeout(checkAPI, 100);
+      }
+    };
+    checkAPI();
+  };
+
+  const initListYTPlayer = (iframe: HTMLIFrameElement | null) => {
+    if (!iframe) return;
+    
+    const checkAPI = () => {
+      if ((window as any).YT && (window as any).YT.Player) {
+        try {
+          listYtPlayerRef.current = new (window as any).YT.Player(iframe);
+        } catch (e) {
+          console.warn('List YT Player initialization failed:', e);
+        }
+      } else {
+        setTimeout(checkAPI, 100);
+      }
+    };
+    checkAPI();
   };
 
   const isDirectAudioLink = (url?: string) => {
@@ -796,10 +865,12 @@ export function DemandingChillies() {
                                                   frequencyType="synthWave" 
                                                   isPlaying={true} 
                                                   bpm={90} 
+                                                  ytPlayerRef={listYtPlayerRef}
                                                 />
                                                 <div className="relative aspect-video w-full max-w-xl mx-auto rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg">
                                                   <iframe
-                                                    src={getEmbedUrl(song.link)}
+                                                    ref={initListYTPlayer}
+                                                    src={getEmbedUrl(song.link) + (song.link.includes('?') ? '&enablejsapi=1' : '?enablejsapi=1')}
                                                     className="w-full h-full border-0"
                                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                                     allowFullScreen
@@ -1218,6 +1289,7 @@ export function DemandingChillies() {
                                    isPlaying={proceduralAudioPlaying} 
                                    bpm={activeVibeSong.bpm}
                                    analyser={activeAnalyser}
+                                   ytPlayerRef={ytPlayerRef}
                                  />
 
                                 {isDirectAudioLink(activeVibeSong.link) && (
@@ -1268,7 +1340,8 @@ export function DemandingChillies() {
                                       <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 shadow-inner">
                                         {proceduralAudioPlaying ? (
                                           <iframe
-                                            src={getEmbedUrl(activeVibeSong.link)}
+                                            ref={initYTPlayer}
+                                            src={getEmbedUrl(activeVibeSong.link) + (activeVibeSong.link.includes('?') ? '&enablejsapi=1' : '?enablejsapi=1')}
                                             className="w-full h-full border-0"
                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                             allowFullScreen
@@ -1300,9 +1373,11 @@ export function DemandingChillies() {
                                         {proceduralAudioPlaying && (
                                           <div className="absolute w-[1px] h-[1px] opacity-0 pointer-events-none">
                                             <iframe
-                                              src={getEmbedUrl(activeVibeSong.link)}
+                                              ref={initYTPlayer}
+                                              src={getEmbedUrl(activeVibeSong.link) + (activeVibeSong.link.includes('?') ? '&enablejsapi=1' : '?enablejsapi=1')}
                                               className="w-full h-full border-0"
                                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                              allowFullScreen
                                             />
                                           </div>
                                         )}
