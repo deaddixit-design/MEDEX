@@ -50,6 +50,7 @@ export function DemandingChillies() {
   const [vibeError, setVibeError] = useState<string | null>(null);
   const [activeVibeSong, setActiveVibeSong] = useState<any>(null);
   const [proceduralAudioPlaying, setProceduralAudioPlaying] = useState(false);
+  const [listAudioPlaying, setListAudioPlaying] = useState(false);
   const [synthesizerStep, setSynthesizerStep] = useState<string>('');
   const [addedItems, setAddedItems] = useState<Record<string, boolean>>({});
   const [addingTrackKey, setAddingTrackKey] = useState<string | null>(null);
@@ -98,6 +99,33 @@ export function DemandingChillies() {
         console.warn('Microphone access denied or unavailable:', err);
         alert('Could not access microphone. Please check your browser permissions.');
       }
+    }
+  };
+
+  const ensureMicSync = async () => {
+    if (micSyncEnabled || micAnalyser) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        if (!synthContextRef.current) {
+          synthContextRef.current = new AudioCtx();
+        }
+        const ctx = synthContextRef.current;
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        
+        setMicStream(stream);
+        setMicAnalyser(analyser);
+        setMicSyncEnabled(true);
+      }
+    } catch (err) {
+      console.warn('Microphone auto-sync capture not granted:', err);
     }
   };
 
@@ -205,6 +233,7 @@ export function DemandingChillies() {
   useEffect(() => {
     listAudioSourceRef.current = null;
     setListAnalyser(null);
+    setListAudioPlaying(false);
   }, [activeItemId]);
 
   const setupListAudioAnalyser = () => {
@@ -931,9 +960,10 @@ export function DemandingChillies() {
                                               <div className="space-y-4">
                                                 <RealtimeWaveCanvas 
                                                   frequencyType="ambientMelody" 
-                                                  isPlaying={true} 
+                                                  isPlaying={listAudioPlaying} 
                                                   bpm={80} 
                                                   analyser={micAnalyser || listAnalyser}
+                                                  audioElementRef={listAudioRef}
                                                 />
                                                 <audio 
                                                   ref={listAudioRef}
@@ -942,7 +972,12 @@ export function DemandingChillies() {
                                                   controls 
                                                   crossOrigin="anonymous"
                                                   autoPlay 
-                                                  onPlay={setupListAudioAnalyser}
+                                                  onPlay={() => {
+                                                    setupListAudioAnalyser();
+                                                    ensureMicSync();
+                                                    setListAudioPlaying(true);
+                                                  }}
+                                                  onPause={() => setListAudioPlaying(false)}
                                                   className="w-full h-10 md:h-14"
                                                 >
                                                   Your browser does not support the audio element.
@@ -1348,12 +1383,13 @@ export function DemandingChillies() {
                                  </div>
 
                                  <RealtimeWaveCanvas 
-                                    frequencyType={activeVibeSong.audioFrequency || "ambientMelody"} 
-                                    isPlaying={proceduralAudioPlaying} 
-                                    bpm={activeVibeSong.bpm}
-                                    analyser={micAnalyser || activeAnalyser}
-                                    ytPlayerRef={ytPlayerRef}
-                                  />
+                                     frequencyType={activeVibeSong.audioFrequency || "ambientMelody"} 
+                                     isPlaying={proceduralAudioPlaying} 
+                                     bpm={activeVibeSong.bpm}
+                                     analyser={micAnalyser || activeAnalyser}
+                                     ytPlayerRef={ytPlayerRef}
+                                     audioElementRef={vibeAudioRef}
+                                   />
 
                                   <div className={cn("bg-black/30 p-2.5 rounded-2xl border border-white/5", !isDirectAudioLink(activeVibeSong.link) && "hidden")}>
                                    <audio 
@@ -1365,6 +1401,7 @@ export function DemandingChillies() {
                                      onPlay={() => {
                                        setupAudioAnalyser();
                                        setProceduralAudioPlaying(true);
+                                       ensureMicSync();
                                      }}
                                      onPause={() => setProceduralAudioPlaying(false)}
                                    />
@@ -1418,7 +1455,10 @@ export function DemandingChillies() {
                                               />
                                             ) : null}
                                             <button 
-                                              onClick={() => setProceduralAudioPlaying(true)}
+                                              onClick={() => {
+                                                setProceduralAudioPlaying(true);
+                                                ensureMicSync();
+                                              }}
                                               className="relative z-10 w-14 h-14 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 shadow-xl shadow-black/50 cursor-pointer"
                                             >
                                               <Play size={22} fill="currentColor" className="ml-1" />
@@ -1632,7 +1672,7 @@ export function DemandingChillies() {
 }
 
 // Interactive procedurally rendered glowing Soundwave Canvas Visualizer block
-function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerRef }: { frequencyType: string; isPlaying: boolean; bpm?: number; analyser?: AnalyserNode | null; ytPlayerRef?: React.RefObject<any> }) {
+function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerRef, audioElementRef }: { frequencyType: string; isPlaying: boolean; bpm?: number; analyser?: AnalyserNode | null; ytPlayerRef?: React.RefObject<any>; audioElementRef?: React.RefObject<HTMLAudioElement | null> }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const lastYtTimeRef = React.useRef<number>(0);
   const lastSyncNowRef = React.useRef<number>(0);
@@ -1658,11 +1698,18 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const ytPlayer = ytPlayerRef?.current;
+      const audioEl = audioElementRef?.current;
       let activePlaying = isPlaying;
       let timeMs = performance.now();
       let ytVolumeMultiplier = 1.0;
 
-      if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function' && typeof ytPlayer.getPlayerState === 'function') {
+      if (audioEl) {
+        try {
+          activePlaying = !audioEl.paused && !audioEl.ended;
+          timeMs = audioEl.currentTime * 1000;
+          ytVolumeMultiplier = audioEl.muted ? 0.0 : audioEl.volume;
+        } catch (e) {}
+      } else if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function' && typeof ytPlayer.getPlayerState === 'function') {
         try {
           const state = ytPlayer.getPlayerState();
           // state 1 = playing, 3 = buffering
@@ -1900,7 +1947,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', resize);
     };
-  }, [frequencyType, isPlaying, bpm, analyser, ytPlayerRef]);
+  }, [frequencyType, isPlaying, bpm, analyser, ytPlayerRef, audioElementRef]);
 
   return (
     <div className="w-full h-24 bg-black/40 rounded-xl relative overflow-hidden border border-white/5 flex flex-col justify-end p-2 shadow-inner">
