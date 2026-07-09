@@ -2702,6 +2702,8 @@ Analyze the user's mood inputs, do a sophisticated mood "vibe check", and return
    - Available Tracks Pool: ${JSON.stringify(songPool)}
    
    If enough pool tracks don't match, or you want to expand, you should suggest newly inspired virtual songs with 'id' set to null and 'link' to a reasonable YouTube search query or link, but with wonderful titles and descriptions.
+
+CRITICAL DIRECTIVE FOR SEARCH QUERIES: If the user's input specifies or searches for a particular song title, artist, movie, or music query (for example: "Akela Hai Mr Khiladi", "lofi beats", "jazz brass"), do not treat it as a general emotional state. You MUST prioritize matching or generating a playlist that includes that exact requested song or artist. If the requested item is not in our Available Tracks Pool, you MUST create a virtual song recommendation for that exact song/artist request, with the title set to the requested song name, artist to the correct artist, and link format set so it resolves to that exact song on YouTube (e.g., https://youtube.com/results?search_query=Akela+Hai+Mr+Khiladi).
    
 For each song in the playlist, provide:
 - "id": number (for pool songs) or null (for virtual songs)
@@ -4111,7 +4113,7 @@ async function searchYoutubeVideo(query: string): Promise<string> {
 
 // Fallback logic for when GEMINI_API_KEY is not defined
 function getProceduralFallbackResponse(mood: string) {
-  const m = mood.toLowerCase();
+  const m = mood.toLowerCase().trim();
   let moodTag = 'Chilled';
   let desc = 'The sonic landscape reflects a peaceful wave of ambient harmonics. Let the syncopated melodies soothe and center you.';
   let primaryCol = 'bg-slate-950';
@@ -4119,7 +4121,7 @@ function getProceduralFallbackResponse(mood: string) {
   let borderCol = 'border-slate-500/20';
   
   let hap = 60, nrg = 40, foc = 70, clm = 80;
-  let songs = [
+  let songs: any[] = [
     { title: 'Morning Dew', artist: 'The Campus Lofi Syndicate', vibeStyle: 'Lofi Jazz', bpm: 72, freq: 'synthWave' },
     { title: 'Velvet Strings', artist: 'Symphonic Club v2', vibeStyle: 'Classical Fusion', bpm: 80, freq: 'ambientMelody' },
     { title: 'Quiet Lights', artist: 'The Chillies Collective', vibeStyle: 'Retro Soft', bpm: 65, freq: 'subBass' }
@@ -4161,6 +4163,32 @@ function getProceduralFallbackResponse(mood: string) {
       { title: 'Flow State Brass', artist: 'Saxophone Intellect', vibeStyle: 'Jazz instrumental', bpm: 80, freq: 'chillHarmonics' },
       { title: 'Logical Harmony', artist: 'Synthesized Calm', vibeStyle: 'Chamber Beat', bpm: 90, freq: 'ambientMelody' }
     ];
+  } else {
+    // Custom search fallback
+    moodTag = 'Custom Search Match';
+    desc = `Resolving specific search request for: "${mood}".`;
+    primaryCol = 'bg-zinc-900';
+    textCol = 'text-red-400';
+    borderCol = 'border-red-500/20';
+    hap = 75; nrg = 75; foc = 75; clm = 75;
+
+    // Search existing songs in the database
+    const dbSongs = db.prepare("SELECT * FROM demanding_items WHERE type = 'song'").all() as any[];
+    const dbMatch = dbSongs.find(s => 
+      s.title.toLowerCase().includes(m) || 
+      (s.description && s.description.toLowerCase().includes(m)) ||
+      (s.category && s.category.toLowerCase().includes(m))
+    );
+
+    if (dbMatch) {
+      songs = [
+        { id: dbMatch.id, title: dbMatch.title, artist: 'Campus Database Track', vibeStyle: dbMatch.category || 'Trending', bpm: 85, freq: 'ambientMelody', link: dbMatch.link }
+      ];
+    } else {
+      songs = [
+        { title: mood, artist: 'VIBE AI Requested Track', vibeStyle: 'Search Result', bpm: 90, freq: 'ambientMelody' }
+      ];
+    }
   }
 
   return {
@@ -4178,14 +4206,14 @@ function getProceduralFallbackResponse(mood: string) {
       calm: clm
     },
     playlist: songs.map(s => ({
-      id: null,
+      id: s.id || null,
       title: s.title,
       artist: s.artist,
       vibeReason: `Matches the structural pacing required for a ${moodTag} vibe.`,
       vibeStyle: s.vibeStyle,
       bpm: s.bpm,
       audioFrequency: s.freq,
-      link: `https://youtube.com/results?search_query=${encodeURIComponent(s.title + ' ' + s.artist)}`
+      link: s.link || `https://youtube.com/results?search_query=${encodeURIComponent(s.title + ' ' + s.artist)}`
     }))
   };
 }
