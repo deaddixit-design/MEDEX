@@ -631,7 +631,7 @@ export function DemandingChillies() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 pt-20 md:pt-32 pb-8 md:pb-24 relative overflow-hidden">
+    <div className="min-h-screen bg-zinc-950 pt-16 md:pt-32 pb-8 md:pb-24 relative overflow-hidden">
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(220,38,38,0.1)_0%,transparent_50%)]" />
@@ -693,7 +693,7 @@ export function DemandingChillies() {
         ))}
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 relative z-10">
         <div className="mb-6 md:mb-12">
           <Link to="/udaan" className="inline-flex items-center gap-2 text-zinc-400 hover:text-white transition-colors font-medium mb-4 md:mb-8 text-sm md:text-base">
             <ArrowLeft size={16} /> Back to Udaan 2.0
@@ -720,9 +720,9 @@ export function DemandingChillies() {
                     <Wind size={14} />
                   </motion.div>
                 </div>
-                <h1 className="text-3xl md:text-7xl font-black italic tracking-tighter text-white flex items-center gap-2">
+                <h1 className="text-[2rem] leading-none sm:text-4xl md:text-7xl font-black italic tracking-tighter text-white flex items-center gap-2 min-w-0">
                   Demanding <span className="text-red-600 drop-shadow-[0_0_20px_rgba(220,38,38,0.5)]">Chillies</span>
-                  <Music className="text-white/20 w-8 h-8 md:w-16 md:h-16 -rotate-12" />
+                  <Music className="hidden sm:block text-white/20 w-8 h-8 md:w-16 md:h-16 -rotate-12 shrink-0" />
                 </h1>
               </div>
               <p className="text-zinc-400 text-sm md:text-xl max-w-2xl font-medium leading-tight">
@@ -732,7 +732,8 @@ export function DemandingChillies() {
           </div>
 
           {/* Section Navigation */}
-          <div className="relative flex items-center gap-2 md:gap-8 mt-8 md:mt-12 w-fit">
+          <div className="-mx-3 sm:mx-0 mt-6 md:mt-12 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="relative flex items-center gap-2 md:gap-8 w-max min-w-full sm:min-w-0 px-3 sm:px-0">
             {[
               { id: 'audio', label: 'Audio', Icon: Music },
               { id: 'video', label: 'Video', Icon: Video },
@@ -743,12 +744,12 @@ export function DemandingChillies() {
                 key={section.id}
                 onClick={() => setActiveSection(section.id as any)}
                 className={cn(
-                  "relative group flex items-center gap-2 px-4 py-2 md:py-3 z-10 transition-colors duration-300",
+                  "relative group flex items-center justify-center gap-2 px-3.5 py-2.5 md:px-4 md:py-3 z-10 transition-colors duration-300 shrink-0",
                   activeSection === section.id ? "text-white" : "text-zinc-500 hover:text-zinc-300"
                 )}
               >
                 <section.Icon size={14} className={cn("hidden md:block transition-transform duration-300", activeSection === section.id ? "scale-110" : "group-hover:scale-110")} />
-                <span className="font-black uppercase text-[10px] md:text-xs tracking-[0.2em]">{section.label}</span>
+                <span className="font-black uppercase text-[10px] md:text-xs tracking-[0.12em] md:tracking-[0.2em] whitespace-nowrap">{section.label}</span>
                 {activeSection === section.id && (
                   <motion.div
                     layoutId="activeTab"
@@ -759,6 +760,7 @@ export function DemandingChillies() {
               </button>
             ))}
           </div>
+          </div>
         </div>
 
         {/* Local Filter Bar Component */}
@@ -766,12 +768,12 @@ export function DemandingChillies() {
           const FilterBar = ({ styles, activeStyle, setActiveStyle }: { styles: string[], activeStyle: string, setActiveStyle: (s: string) => void }) => {
             if (styles.length <= 1) return null;
             return (
-              <div className="flex flex-wrap gap-2 mb-4 md:mb-6">
+              <div className="-mx-1 flex gap-2 mb-4 md:mb-6 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap md:overflow-visible">
                 {styles.map(style => (
                   <button
                     key={style}
                     onClick={() => setActiveStyle(style)}
-                    className="relative group px-3 py-1 md:px-4 md:py-1.5 transition-colors duration-300"
+                    className="relative group px-3 py-1.5 md:px-4 md:py-1.5 transition-colors duration-300 shrink-0"
                   >
                     <span className={cn(
                       "relative z-10 text-[8px] md:text-[10px] font-black uppercase tracking-widest transition-colors duration-300",
@@ -793,7 +795,7 @@ export function DemandingChillies() {
           };
 
           return (
-            <div className="space-y-12 md:space-y-20 mt-12 md:mt-16">
+            <div className="space-y-8 md:space-y-20 mt-8 md:mt-16">
               {activeSection !== 'vibe' && (
                 <div className="relative max-w-md w-full">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-500">
@@ -835,40 +837,48 @@ export function DemandingChillies() {
                     </div>
                     
                     <div className="bg-zinc-900/50 backdrop-blur-xl rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden shadow-2xl shadow-black">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                          <thead>
+                      <div className="overflow-hidden">
+                        <table className="block md:table w-full text-left">
+                          <thead className="hidden md:table-header-group">
                             <tr className="bg-white/5 text-zinc-400">
-                              <th className="px-3 md:px-8 py-3 md:py-5 font-black uppercase tracking-widest text-[10px] md:text-xs">№</th>
+                              <th className="px-3 md:px-8 py-3 md:py-5 font-black uppercase tracking-widest text-[10px] md:text-xs">#</th>
                               <th className="px-4 md:px-8 py-3 md:py-5 font-black uppercase tracking-widest text-[10px] md:text-xs">Title</th>
                               <th className="hidden md:table-cell px-8 py-5 font-black uppercase tracking-widest text-xs">Style</th>
                               <th className="px-4 md:px-8 py-3 md:py-5 font-black uppercase tracking-widest text-[10px] md:text-xs text-right">Preview</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-white/5">
+                          <tbody className="block md:table-row-group p-2 md:p-0 space-y-2 md:space-y-0 md:divide-y md:divide-white/5">
                                 {songs.length > 0 ? (
                                   songs.map((song, idx) => (
                                     <React.Fragment key={song.id}>
                                       <tr className={cn(
-                                        "hover:bg-red-600/5 transition-colors group",
-                                        activeItemId === song.id && "bg-red-600/5"
+                                        "block md:table-row rounded-2xl md:rounded-none border md:border-0 border-white/5 hover:bg-red-600/5 transition-colors group overflow-hidden",
+                                        activeItemId === song.id ? "bg-red-600/10 md:bg-red-600/5 border-red-600/20" : "bg-black/20 md:bg-transparent"
                                       )}>
-                                        <td className="px-3 md:px-8 py-4 md:py-6 font-bold text-zinc-600 text-xs md:text-base">#{idx + 1}</td>
-                                        <td className="px-4 md:px-8 py-4 md:py-6">
-                                          <div className="font-black text-sm md:text-lg text-white line-clamp-1">{song.title}</div>
-                                          <div className="text-[10px] md:text-sm text-zinc-400 mt-0.5 line-clamp-1 italic">{song.description}</div>
+                                        <td className="hidden md:table-cell px-3 md:px-8 py-4 md:py-6 font-bold text-zinc-600 text-xs md:text-base">#{idx + 1}</td>
+                                        <td className="block md:table-cell px-3 md:px-8 pt-3 pb-1 md:py-6">
+                                          <div className="flex items-start gap-2 md:block">
+                                            <span className="md:hidden mt-0.5 text-[10px] font-black text-red-500/70 shrink-0">#{idx + 1}</span>
+                                            <div className="min-w-0">
+                                              <div className="font-black text-sm md:text-lg text-white line-clamp-2 md:line-clamp-1 leading-snug">{song.title}</div>
+                                              <div className="text-[10px] md:text-sm text-zinc-400 mt-1 line-clamp-2 md:line-clamp-1 italic leading-snug">{song.description}</div>
+                                              <span className="md:hidden inline-flex mt-2 px-2 py-0.5 bg-red-600/10 rounded-full text-[8px] font-black uppercase text-red-500 border border-red-500/20 max-w-full truncate">
+                                                {song.category || 'Trending'}
+                                              </span>
+                                            </div>
+                                          </div>
                                         </td>
                                         <td className="hidden md:table-cell px-8 py-6">
                                           <span className="px-3 py-1 bg-red-600/10 rounded-full text-[10px] font-black uppercase text-red-500 border border-red-500/20">
                                             {song.category || 'Trending'}
                                           </span>
                                         </td>
-                                        <td className="px-4 md:px-8 py-4 md:py-6 text-right">
+                                        <td className="block md:table-cell px-3 md:px-8 pt-1 pb-3 md:py-6 text-right">
                                           <div className="flex items-center justify-end gap-3">
                                             <button 
                                               onClick={() => setActiveItemId(activeItemId === song.id ? null : song.id)}
                                               className={cn(
-                                                "w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg",
+                                                "w-9 h-9 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg",
                                                 activeItemId === song.id 
                                                   ? "bg-white text-red-600" 
                                                   : "bg-red-600 text-white shadow-red-900/20"
@@ -881,11 +891,11 @@ export function DemandingChillies() {
                                       </tr>
                                       {activeItemId === song.id && (
                                         <tr>
-                                          <td colSpan={4} className="px-4 md:px-8 py-4 bg-red-600/5 border-b border-red-600/10">
+                                          <td colSpan={4} className="block md:table-cell px-2 md:px-8 py-3 md:py-4 bg-red-600/5 border-b border-red-600/10 rounded-2xl md:rounded-none">
                                             <motion.div
                                               initial={{ height: 0, opacity: 0 }}
                                               animate={{ height: 'auto', opacity: 1 }}
-                                              className="py-4 overflow-hidden"
+                                              className="py-2 md:py-4 overflow-hidden"
                                             >
                                           <div className="px-0 md:px-4 space-y-4">
                                             {isYoutube(song.link) ? (
@@ -944,8 +954,8 @@ export function DemandingChillies() {
                                     </React.Fragment>
                                   ))
                             ) : (
-                              <tr>
-                                <td colSpan={4} className="px-4 py-8 md:py-12 text-center text-zinc-500 font-medium italic text-xs md:text-base">
+                              <tr className="block md:table-row">
+                                <td colSpan={4} className="block md:table-cell px-4 py-8 md:py-12 text-center text-zinc-500 font-medium italic text-xs md:text-base">
                                   No tracks match this style.
                                 </td>
                               </tr>
@@ -973,13 +983,13 @@ export function DemandingChillies() {
                       <FilterBar styles={videoStyles} activeStyle={videoStyle} setActiveStyle={setVideoStyle} />
                     </div>
                     
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-8 px-1 md:px-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-8 px-0 md:px-0">
                       {videography.length > 0 ? (
                         videography.map((item) => (
                           <motion.div
                             key={item.id}
                             layout
-                            className="group bg-zinc-900/50 backdrop-blur-xl rounded-xl md:rounded-[2rem] border border-white/5 overflow-hidden flex flex-col"
+                            className="group bg-zinc-900/50 backdrop-blur-xl rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden flex flex-col"
                           >
                             <div className="relative aspect-video overflow-hidden bg-black">
                               {activeItemId === item.id ? (
@@ -1028,16 +1038,16 @@ export function DemandingChillies() {
                                 </button>
                               )}
                             </div>
-                            <div className="p-3 md:p-6 flex-grow">
-                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-1 md:mb-2">
-                                <h3 className="font-bold text-white text-[10px] md:text-lg line-clamp-1">{item.title}</h3>
+                            <div className="p-4 md:p-6 flex-grow">
+                              <div className="flex items-start justify-between gap-2 mb-1 md:mb-2">
+                                <h3 className="font-bold text-white text-sm md:text-lg line-clamp-2 md:line-clamp-1 leading-snug">{item.title}</h3>
                                 {item.category && (
-                                  <span className="px-1.5 py-0.5 bg-red-600/10 rounded-full text-[7px] md:text-[10px] font-black uppercase text-red-500 border border-red-500/20 w-fit">
+                                  <span className="px-2 py-0.5 bg-red-600/10 rounded-full text-[8px] md:text-[10px] font-black uppercase text-red-500 border border-red-500/20 w-fit shrink-0">
                                     {item.category}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[9px] md:text-xs text-zinc-400 line-clamp-2 italic leading-tight">
+                              <p className="text-xs md:text-xs text-zinc-400 line-clamp-2 italic leading-snug">
                                 {item.description}
                               </p>
                             </div>
@@ -1068,13 +1078,13 @@ export function DemandingChillies() {
                       <FilterBar styles={photoStyles} activeStyle={photoStyle} setActiveStyle={setPhotoStyle} />
                     </div>
                     
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-8 px-1 md:px-0">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-8 px-0 md:px-0">
                       {photography.length > 0 ? (
                         photography.map((item) => (
                           <motion.div
                             key={item.id}
                             layout
-                            className="group bg-zinc-900/50 backdrop-blur-xl rounded-xl md:rounded-[2rem] border border-white/5 overflow-hidden flex flex-col cursor-pointer"
+                            className="group bg-zinc-900/50 backdrop-blur-xl rounded-2xl md:rounded-[2rem] border border-white/5 overflow-hidden flex flex-col cursor-pointer"
                             onClick={() => setActiveItemId(activeItemId === item.id ? null : item.id)}
                           >
                             <div className="relative aspect-[4/3] overflow-hidden bg-black">
@@ -1093,16 +1103,16 @@ export function DemandingChillies() {
                                 </div>
                               </div>
                             </div>
-                            <div className="p-3 md:p-6 bg-zinc-900/40 flex-grow">
-                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-1 md:mb-2">
-                                <h3 className="font-bold text-white text-[10px] md:text-lg line-clamp-1">{item.title}</h3>
+                            <div className="p-4 md:p-6 bg-zinc-900/40 flex-grow">
+                              <div className="flex items-start justify-between gap-2 mb-1 md:mb-2">
+                                <h3 className="font-bold text-white text-sm md:text-lg line-clamp-2 md:line-clamp-1 leading-snug">{item.title}</h3>
                                 {item.category && (
-                                  <span className="px-1.5 py-0.5 bg-red-600/10 rounded-full text-[7px] md:text-[10px] font-black uppercase text-red-500 border border-red-500/20 w-fit">
+                                  <span className="px-2 py-0.5 bg-red-600/10 rounded-full text-[8px] md:text-[10px] font-black uppercase text-red-500 border border-red-500/20 w-fit shrink-0">
                                     {item.category}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[9px] md:text-xs text-zinc-400 line-clamp-2 italic leading-tight">
+                              <p className="text-xs md:text-xs text-zinc-400 line-clamp-2 italic leading-snug">
                                 {item.description}
                               </p>
                             </div>
@@ -1130,10 +1140,10 @@ export function DemandingChillies() {
                       <h2 className="text-xl md:text-3xl font-black uppercase tracking-tight text-white">Vibe Check Mood Analytics</h2>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-8 items-start">
                       {/* Left: Input Mood Form */}
-                      <div className="lg:col-span-5 space-y-6">
-                        <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/5 rounded-3xl p-6 shadow-2xl space-y-4">
+                      <div className="lg:col-span-5 space-y-4 md:space-y-6">
+                        <div className="bg-zinc-900/60 backdrop-blur-xl border border-white/5 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-2xl space-y-4">
                           <div className="flex items-center gap-2 text-zinc-400 text-sm font-semibold">
                             <Smile size={18} className="text-red-500" />
                             <span>How is your vibe right now?</span>
@@ -1144,7 +1154,7 @@ export function DemandingChillies() {
                               value={moodInput}
                               onChange={(e) => setMoodInput(e.target.value)}
                               placeholder="e.g. Tired after study sessions, need a slow blues lofi to decompress..."
-                              className="w-full h-32 bg-black/40 text-white rounded-2xl p-4 border border-white/10 focus:border-red-600 focus:outline-none transition-all text-sm leading-relaxed resize-none font-medium"
+                              className="w-full h-28 md:h-32 bg-black/40 text-white rounded-2xl p-4 border border-white/10 focus:border-red-600 focus:outline-none transition-all text-sm leading-relaxed resize-none font-medium"
                               disabled={analyzing}
                             />
                             
@@ -1156,7 +1166,7 @@ export function DemandingChillies() {
                               type="submit"
                               disabled={analyzing || !moodInput.trim()}
                               className={cn(
-                                "w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer",
+                                "w-full py-3.5 md:py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer",
                                 analyzing || !moodInput.trim()
                                   ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
                                   : "bg-red-600 hover:bg-red-500 text-white shadow-red-950/20 active:scale-95"
@@ -1182,10 +1192,10 @@ export function DemandingChillies() {
                           <h4 className="text-zinc-500 text-xs font-black uppercase tracking-wider">Quick Mood Boosters</h4>
                           <div className="flex flex-wrap gap-2">
                             {[
-                              { text: "Stressed after non-stop lectures, need slow cozy jazz string harmony to study and relax", label: "📚 Study Flow", color: "border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/40" },
-                              { text: "Super excited and hyper! Getting ready for the Udaan 2.0 fest tonight with my team, need energizing brass!", label: "🔥 Festival Hype", color: "border-red-500/20 text-red-500 hover:bg-red-500/10 hover:border-red-500/40" },
-                              { text: "Feeling high-focus and coding in the campus zone. Give me rich binaural synth elements.", label: "💻 Deep Coding", color: "border-violet-500/20 text-violet-400 hover:bg-violet-500/10 hover:border-violet-500/40" },
-                              { text: "Melancholic quiet evening, looking for classic keyboards and peaceful lounge melodies", label: "🌙 Peaceful Healing", color: "border-teal-500/20 text-teal-400 hover:bg-teal-500/10 hover:border-teal-500/40" }
+                              { text: "Stressed after non-stop lectures, need slow cozy jazz string harmony to study and relax", label: "Study Flow", color: "border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/40" },
+                              { text: "Super excited and hyper! Getting ready for the Udaan 2.0 fest tonight with my team, need energizing brass!", label: "Festival Hype", color: "border-red-500/20 text-red-500 hover:bg-red-500/10 hover:border-red-500/40" },
+                              { text: "Feeling high-focus and coding in the campus zone. Give me rich binaural synth elements.", label: "Deep Coding", color: "border-violet-500/20 text-violet-400 hover:bg-violet-500/10 hover:border-violet-500/40" },
+                              { text: "Melancholic quiet evening, looking for classic keyboards and peaceful lounge melodies", label: "Peaceful Healing", color: "border-teal-500/20 text-teal-400 hover:bg-teal-500/10 hover:border-teal-500/40" }
                             ].map((preset, idx) => (
                               <button
                                 key={idx}
@@ -1212,7 +1222,7 @@ export function DemandingChillies() {
                               <History size={12} />
                               <span>Your Mood log history</span>
                             </h4>
-                            <div className="divide-y divide-white/5 max-h-48 overflow-y-auto pr-1">
+                            <div className="divide-y divide-white/5 max-h-40 md:max-h-48 overflow-y-auto pr-1">
                               {vibeHistory.map((item, idx) => (
                                 <button
                                   key={idx}
@@ -1224,7 +1234,7 @@ export function DemandingChillies() {
                                 >
                                   <div className="truncate max-w-[70%]">
                                     <span className="font-bold text-white block truncate">{item.moodText}</span>
-                                    <span className="text-[10px] text-zinc-500">{item.date} • {item.detectedMood}</span>
+                                    <span className="text-[10px] text-zinc-500">{item.date} - {item.detectedMood}</span>
                                   </div>
                                   <span className="text-zinc-600 group-hover:text-red-500 font-bold transition-all text-[10px] uppercase">Restore</span>
                                 </button>
@@ -1237,7 +1247,7 @@ export function DemandingChillies() {
                       {/* Right: Results panel */}
                       <div className="lg:col-span-7">
                         {analyzing ? (
-                          <div className="bg-zinc-900/40 border border-white/5 rounded-3xl p-12 text-center h-[420px] flex flex-col items-center justify-center space-y-6">
+                          <div className="bg-zinc-900/40 border border-white/5 rounded-2xl md:rounded-3xl p-6 md:p-12 text-center min-h-[280px] md:h-[420px] flex flex-col items-center justify-center space-y-4 md:space-y-6">
                             <div className="relative">
                               <div className="w-16 h-16 border-4 border-red-500/20 border-t-red-600 rounded-full animate-spin" />
                               <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-red-500" size={20} />
@@ -1260,8 +1270,8 @@ export function DemandingChillies() {
                         ) : vibeResult ? (
                           <div className="space-y-6">
                             {/* Mood Analytics badge and summary */}
-                            <div className={cn("rounded-3xl border p-6 transition-all shadow-xl space-y-4", vibeResult.colorPalette?.primary || "bg-slate-950", vibeResult.colorPalette?.border || "border-zinc-800")}>
-                              <div className="flex items-center justify-between">
+                            <div className={cn("rounded-2xl md:rounded-3xl border p-4 md:p-6 transition-all shadow-xl space-y-4", vibeResult.colorPalette?.primary || "bg-slate-950", vibeResult.colorPalette?.border || "border-zinc-800")}>
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <span className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-black uppercase text-white/90 tracking-widest border border-white/10">
                                   Mood Frequency: {vibeResult.detectedMood}
                                 </span>
@@ -1275,7 +1285,7 @@ export function DemandingChillies() {
                               </p>
 
                               {/* Progress metrics bars */}
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-white/10">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 pt-3 border-t border-white/10">
                                 {[
                                   { label: 'Happiness', val: vibeResult.scores?.happiness, col: 'bg-amber-500' },
                                   { label: 'Energy', val: vibeResult.scores?.energy, col: 'bg-red-500' },
@@ -1302,19 +1312,19 @@ export function DemandingChillies() {
 
                             {/* Audio Visualizer section */}
                             {activeVibeSong && (
-                              <div className="bg-zinc-900 border border-white/10 rounded-3xl p-4 md:p-6 space-y-4 shadow-xl">
-                                <div className="flex items-center justify-between gap-4">
-                                  <div>
+                              <div className="bg-zinc-900 border border-white/10 rounded-2xl md:rounded-3xl p-4 md:p-6 space-y-4 shadow-xl">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
                                     <span className="text-[10px] font-black uppercase text-red-500 tracking-widest">
                                       {isDirectAudioLink(activeVibeSong.link) ? "High-Demand Audio Channel" : isYoutube(activeVibeSong.link) ? "High-Demand Video Deck" : "Active Modulation Channel"}
                                     </span>
-                                    <h3 className="font-black text-sm md:text-lg text-white">{activeVibeSong.title}</h3>
-                                    <p className="text-xs text-zinc-400">by {activeVibeSong.artist} • {activeVibeSong.bpm} BPM • {activeVibeSong.vibeStyle}</p>
+                                    <h3 className="font-black text-sm md:text-lg text-white line-clamp-2 leading-snug">{activeVibeSong.title}</h3>
+                                    <p className="text-[11px] md:text-xs text-zinc-400 line-clamp-2">by {activeVibeSong.artist} â€¢ {activeVibeSong.bpm} BPM â€¢ {activeVibeSong.vibeStyle}</p>
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
                                       <button
                                         onClick={() => setProceduralAudioPlaying(!proceduralAudioPlaying)}
-                                        className="w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white font-black hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
+                                        className="w-11 h-11 md:w-12 md:h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white font-black hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
                                       >
                                         {proceduralAudioPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
                                       </button>
@@ -1348,11 +1358,11 @@ export function DemandingChillies() {
 
                                 {isYoutube(activeVibeSong.link) && (
                                   <div className="bg-black/30 p-2.5 rounded-2xl border border-white/5 space-y-2.5">
-                                    <div className="flex justify-end gap-2">
+                                    <div className="grid grid-cols-2 gap-2">
                                       <button
                                         onClick={() => setPlayMode('audio')}
                                         className={cn(
-                                          "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer border",
+                                          "px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer border",
                                           playMode === 'audio'
                                             ? "bg-red-600 border-red-600 text-white shadow-lg shadow-red-650/20"
                                             : "border-white/10 text-zinc-500 hover:text-white"
@@ -1363,7 +1373,7 @@ export function DemandingChillies() {
                                       <button
                                         onClick={() => setPlayMode('video')}
                                         className={cn(
-                                          "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer border",
+                                          "px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer border",
                                           playMode === 'video'
                                             ? "bg-red-600 border-red-600 text-white shadow-lg shadow-red-650/20"
                                             : "border-white/10 text-zinc-500 hover:text-white"
@@ -1408,7 +1418,7 @@ export function DemandingChillies() {
                                         )}
                                       </div>
                                     ) : (
-                                      <div className="relative h-44 w-full rounded-xl bg-gradient-to-br from-zinc-900 to-black/90 border border-white/10 shadow-inner flex flex-col items-center justify-center overflow-hidden">
+                                      <div className="relative h-36 md:h-44 w-full rounded-xl bg-gradient-to-br from-zinc-900 to-black/90 border border-white/10 shadow-inner flex flex-col items-center justify-center overflow-hidden">
                                         {proceduralAudioPlaying && (
                                           <div className="absolute w-[1px] h-[1px] opacity-0 pointer-events-none">
                                             <iframe
@@ -1436,7 +1446,7 @@ export function DemandingChillies() {
                                         {!proceduralAudioPlaying && (
                                           <button 
                                             onClick={() => setProceduralAudioPlaying(true)}
-                                            className="absolute inset-0 m-auto w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 shadow-lg cursor-pointer"
+                                            className="absolute inset-0 m-auto w-11 h-11 md:w-12 md:h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 shadow-lg cursor-pointer"
                                           >
                                             <Play size={20} fill="currentColor" className="ml-1" />
                                           </button>
@@ -1450,8 +1460,8 @@ export function DemandingChillies() {
                                   </div>
                                 )}
 
-                                <div className="flex items-center justify-between text-xs text-zinc-500">
-                                  <span>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-zinc-500">
+                                  <span className="min-w-0">
                                     {isDirectAudioLink(activeVibeSong.link) 
                                       ? "Streaming High-Demand MP3 Deck" 
                                       : isYoutube(activeVibeSong.link)
@@ -1975,7 +1985,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerR
   }, [frequencyType, isPlaying, bpm, analyser, ytPlayerRef, audioElementRef, syncSource]);
 
   return (
-    <div className="w-full h-36 bg-black/40 rounded-xl relative overflow-hidden border border-white/5 flex flex-col justify-end p-2 shadow-inner">
+    <div className="w-full h-28 sm:h-36 bg-black/40 rounded-xl relative overflow-hidden border border-white/5 flex flex-col justify-end p-2 shadow-inner">
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       <span className="relative font-mono text-[9px] uppercase text-zinc-500 tracking-wider flex items-center gap-1">
         <Radio size={10} className={isPlaying ? 'text-red-500 animate-pulse' : ''} />
