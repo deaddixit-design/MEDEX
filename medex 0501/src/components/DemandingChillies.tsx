@@ -60,6 +60,47 @@ export function DemandingChillies() {
   const ytPlayerRef = React.useRef<any>(null);
   const listYtPlayerRef = React.useRef<any>(null);
 
+  // Microphone Audio Capture for 100% true visualizer sync
+  const [micAnalyser, setMicAnalyser] = useState<AnalyserNode | null>(null);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
+  const [micSyncEnabled, setMicSyncEnabled] = useState(false);
+
+  const toggleMicSync = async () => {
+    if (micSyncEnabled) {
+      if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+      }
+      setMicStream(null);
+      setMicAnalyser(null);
+      setMicSyncEnabled(false);
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          if (!synthContextRef.current) {
+            synthContextRef.current = new AudioCtx();
+          }
+          const ctx = synthContextRef.current;
+          if (ctx.state === 'suspended') {
+            ctx.resume();
+          }
+          const source = ctx.createMediaStreamSource(stream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          
+          setMicStream(stream);
+          setMicAnalyser(analyser);
+          setMicSyncEnabled(true);
+        }
+      } catch (err) {
+        console.warn('Microphone access denied or unavailable:', err);
+        alert('Could not access microphone. Please check your browser permissions.');
+      }
+    }
+  };
+
   // Load YouTube Iframe API once
   useEffect(() => {
     if (!(window as any).YT) {
@@ -865,6 +906,7 @@ export function DemandingChillies() {
                                                   frequencyType="synthWave" 
                                                   isPlaying={true} 
                                                   bpm={90} 
+                                                  analyser={micAnalyser}
                                                   ytPlayerRef={listYtPlayerRef}
                                                 />
                                                 <div className="relative aspect-video w-full max-w-xl mx-auto rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg">
@@ -883,7 +925,7 @@ export function DemandingChillies() {
                                                   frequencyType="ambientMelody" 
                                                   isPlaying={true} 
                                                   bpm={80} 
-                                                  analyser={listAnalyser}
+                                                  analyser={micAnalyser || listAnalyser}
                                                 />
                                                 <audio 
                                                   ref={listAudioRef}
@@ -1275,22 +1317,35 @@ export function DemandingChillies() {
                                     <p className="text-xs text-zinc-400">by {activeVibeSong.artist} • {activeVibeSong.bpm} BPM • {activeVibeSong.vibeStyle}</p>
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
-                                    <button
-                                      onClick={() => setProceduralAudioPlaying(!proceduralAudioPlaying)}
-                                      className="w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white font-black hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
-                                    >
-                                      {proceduralAudioPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-                                    </button>
-                                  </div>
-                                </div>
+                                     <button
+                                       onClick={toggleMicSync}
+                                       className={cn(
+                                         "px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 border cursor-pointer flex items-center gap-1.5 shadow-md",
+                                         micSyncEnabled
+                                           ? "bg-red-600 border-red-600 text-white"
+                                           : "border-white/10 text-zinc-400 hover:text-white bg-zinc-950/30"
+                                       )}
+                                       title="Visualizes actual sound from speakers using mic capture"
+                                     >
+                                       <Mic2 size={14} className={micSyncEnabled ? "animate-pulse" : ""} />
+                                       <span>{micSyncEnabled ? "Mic Sync: ON" : "Mic Sync"}</span>
+                                     </button>
+                                     <button
+                                       onClick={() => setProceduralAudioPlaying(!proceduralAudioPlaying)}
+                                       className="w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white font-black hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
+                                     >
+                                       {proceduralAudioPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                                     </button>
+                                   </div>
+                                 </div>
 
-                                <RealtimeWaveCanvas 
-                                   frequencyType={activeVibeSong.audioFrequency || "ambientMelody"} 
-                                   isPlaying={proceduralAudioPlaying} 
-                                   bpm={activeVibeSong.bpm}
-                                   analyser={activeAnalyser}
-                                   ytPlayerRef={ytPlayerRef}
-                                 />
+                                 <RealtimeWaveCanvas 
+                                    frequencyType={activeVibeSong.audioFrequency || "ambientMelody"} 
+                                    isPlaying={proceduralAudioPlaying} 
+                                    bpm={activeVibeSong.bpm}
+                                    analyser={micAnalyser || activeAnalyser}
+                                    ytPlayerRef={ytPlayerRef}
+                                  />
 
                                 {isDirectAudioLink(activeVibeSong.link) && (
                                   <div className="bg-black/30 p-2.5 rounded-2xl border border-white/5">
@@ -1571,7 +1626,7 @@ export function DemandingChillies() {
 }
 
 // Interactive procedurally rendered glowing Soundwave Canvas Visualizer block
-function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequencyType: string; isPlaying: boolean; bpm?: number; analyser?: AnalyserNode | null }) {
+function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser, ytPlayerRef }: { frequencyType: string; isPlaying: boolean; bpm?: number; analyser?: AnalyserNode | null; ytPlayerRef?: React.RefObject<any> }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   React.useEffect(() => {
@@ -1594,7 +1649,31 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      if (!isPlaying) {
+      const ytPlayer = ytPlayerRef?.current;
+      let activePlaying = isPlaying;
+      let timeMs = performance.now();
+      let ytVolumeMultiplier = 1.0;
+
+      if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function' && typeof ytPlayer.getPlayerState === 'function') {
+        try {
+          const state = ytPlayer.getPlayerState();
+          // state 1 = playing, 3 = buffering
+          activePlaying = (state === 1 || state === 3);
+          timeMs = ytPlayer.getCurrentTime() * 1000;
+
+          // Check volume and mute status to scale the waves!
+          if (typeof ytPlayer.isMuted === 'function' && ytPlayer.isMuted()) {
+            ytVolumeMultiplier = 0.0;
+          } else if (typeof ytPlayer.getVolume === 'function') {
+            const vol = ytPlayer.getVolume(); // 0 to 100
+            ytVolumeMultiplier = vol / 100.0;
+          }
+        } catch (e) {
+          // fallback
+        }
+      }
+
+      if (!activePlaying) {
         // Draw flat line with subtle wave
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(239, 68, 68, 0.2)';
@@ -1617,7 +1696,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
 
       const selectedColors = waveColors[frequencyType as keyof typeof waveColors] || ['rgba(239, 68, 68, 0.7)', 'rgba(239, 68, 68, 0.3)'];
 
-      // Check if we have active Web Audio analyser node data
+      // Check if we have active Web Audio analyser node data (Mic Sync or Direct Media)
       let realTimeData: Uint8Array = new Uint8Array(0);
       let frequencyData: Uint8Array = new Uint8Array(0);
       let waveAmplifier = 1.0;
@@ -1637,7 +1716,8 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
             sum += val * val;
           }
           const rms = Math.sqrt(sum / bufferLength);
-          waveAmplifier = 0.5 + rms * 3.5;
+          // If silence, waveAmplifier will shrink to 0!
+          waveAmplifier = rms * 4.0;
         } catch (e) {
           realTimeData = new Uint8Array(0);
           frequencyData = new Uint8Array(0);
@@ -1657,7 +1737,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
           const freqIndex = Math.floor((i / 36) * (frequencyData.length * 0.6));
           const val = frequencyData[freqIndex] || 0;
           
-          // Map value to height
+          // Map to height - if waveAmplifier is near 0, height is 0
           const barHeight = Math.max(3, (val / 255) * (canvas.height * 0.6) * waveAmplifier);
           
           const strokeColor = selectedColors[i % selectedColors.length];
@@ -1693,7 +1773,9 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
         for (let x = 0; x < canvas.width; x += 2) {
           const dataIndex = Math.floor((x / canvas.width) * bufferLength);
           const v = realTimeData[dataIndex] / 128.0;
-          const yOffset = (v - 1.0) * (canvas.height / 2) * 1.5;
+          
+          // If silence, (v - 1.0) is 0, so wave goes completely flat!
+          const yOffset = (v - 1.0) * (canvas.height / 2) * 1.5 * Math.min(1.0, waveAmplifier * 3.0);
           const y = canvas.height / 2 + yOffset - 6;
           
           if (x === 0) {
@@ -1705,12 +1787,11 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
         ctx.stroke();
         phase += 0.04;
       } else {
-        // Procedural simulation synced to track BPM
-        const now = performance.now();
+        // Procedural simulation synced to track BPM and YT Volume multiplier
         const targetBpm = bpm || 90;
         const beatPeriod = 60000 / targetBpm;
-        const beatPhase = (now % beatPeriod) / beatPeriod; // 0 to 1
-        const beatIntensity = Math.exp(-beatPhase * 4.5);   // exponential decay envelope
+        const beatPhase = (timeMs % beatPeriod) / beatPeriod; // 0 to 1
+        const beatIntensity = Math.exp(-beatPhase * 4.5) * ytVolumeMultiplier; // scale beat by volume!
         const pulseMultiplier = 1.0 + beatIntensity * 0.55; // pulsate height on beat
 
         const amplitudes = {
@@ -1743,8 +1824,8 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
           }
           
           // Add some random music jitter
-          const jitter = (Math.random() - 0.5) * 4;
-          const barHeight = Math.max(3, baseHeight + jitter);
+          const jitter = (Math.random() - 0.5) * 4 * ytVolumeMultiplier;
+          const barHeight = Math.max(3, (baseHeight + jitter) * ytVolumeMultiplier);
           
           const strokeColor = selectedColors[i % selectedColors.length];
           ctx.fillStyle = strokeColor;
@@ -1764,13 +1845,13 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
         ctx.shadowColor = strokeColor;
         ctx.shadowBlur = 10 + beatIntensity * 12;
 
-        phase += 0.12 + beatIntensity * 0.08; // speed up slightly on beat!
+        phase = (timeMs / 1000) * (targetBpm / 60) * 2.0;
 
-        const amplitudeFactor = amplitudes[frequencyType as keyof typeof amplitudes] || 20;
+        const amplitudeFactor = (amplitudes[frequencyType as keyof typeof amplitudes] || 20) * ytVolumeMultiplier;
 
         for (let x = 0; x < canvas.width; x += 3) {
           // Generate high frequency twitchy noise that mimics voice/music frequencies
-          const noise = Math.sin(x * 0.1 + phase * 2) * Math.cos(x * 0.05 - phase) * 2;
+          const noise = Math.sin(x * 0.1 + phase * 2) * Math.cos(x * 0.05 - phase) * 2 * ytVolumeMultiplier;
           const beatKick = Math.sin(x * 0.02 + phase) * amplitudeFactor * pulseMultiplier;
           
           // Add a jitter factor
@@ -1798,7 +1879,7 @@ function RealtimeWaveCanvas({ frequencyType, isPlaying, bpm, analyser }: { frequ
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', resize);
     };
-  }, [frequencyType, isPlaying, bpm, analyser]);
+  }, [frequencyType, isPlaying, bpm, analyser, ytPlayerRef]);
 
   return (
     <div className="w-full h-24 bg-black/40 rounded-xl relative overflow-hidden border border-white/5 flex flex-col justify-end p-2 shadow-inner">
