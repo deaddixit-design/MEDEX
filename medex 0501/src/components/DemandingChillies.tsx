@@ -59,6 +59,19 @@ export function DemandingChillies() {
     setSearchQuery('');
   }, [activeSection]);
 
+  // Sync and prevent multiple audio playbacks simultaneously
+  useEffect(() => {
+    if (proceduralAudioPlaying && activeVibeSong) {
+      setActiveItemId(null);
+    }
+  }, [proceduralAudioPlaying, activeVibeSong]);
+
+  useEffect(() => {
+    if (activeItemId !== null) {
+      setProceduralAudioPlaying(false);
+    }
+  }, [activeItemId]);
+
   const handleAddToList = async (e: React.MouseEvent, track: any, type: 'song' | 'videography') => {
     e.stopPropagation();
     const trackKey = `${track.title}-${type}`;
@@ -393,9 +406,9 @@ export function DemandingChillies() {
   const filteredAllVideos = filterBySearch(allVideos);
   const filteredAllPhotos = filterBySearch(allPhotos);
 
-  const songs = audioStyle === 'All' ? filteredAllSongs : filteredAllSongs.filter(item => (item.category || 'Trending') === audioStyle);
-  const videography = videoStyle === 'All' ? filteredAllVideos : filteredAllVideos.filter(item => (item.category || 'Trending') === videoStyle);
-  const photography = photoStyle === 'All' ? filteredAllPhotos : filteredAllPhotos.filter(item => (item.category || 'Trending') === photoStyle);
+  const songs = (audioStyle === 'All' || searchQuery.trim() !== '') ? filteredAllSongs : filteredAllSongs.filter(item => (item.category || 'Trending') === audioStyle);
+  const videography = (videoStyle === 'All' || searchQuery.trim() !== '') ? filteredAllVideos : filteredAllVideos.filter(item => (item.category || 'Trending') === videoStyle);
+  const photography = (photoStyle === 'All' || searchQuery.trim() !== '') ? filteredAllPhotos : filteredAllPhotos.filter(item => (item.category || 'Trending') === photoStyle);
 
   const getDirectUrl = (url: string) => {
     if (!url) return '';
