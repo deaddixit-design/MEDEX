@@ -61,73 +61,7 @@ export function DemandingChillies() {
   const ytPlayerRef = React.useRef<any>(null);
   const listYtPlayerRef = React.useRef<any>(null);
 
-  // Microphone Audio Capture for 100% true visualizer sync
-  const [micAnalyser, setMicAnalyser] = useState<AnalyserNode | null>(null);
-  const [micStream, setMicStream] = useState<MediaStream | null>(null);
-  const [micSyncEnabled, setMicSyncEnabled] = useState(false);
-
-  const toggleMicSync = async () => {
-    if (micSyncEnabled) {
-      if (micStream) {
-        micStream.getTracks().forEach(track => track.stop());
-      }
-      setMicStream(null);
-      setMicAnalyser(null);
-      setMicSyncEnabled(false);
-    } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtx) {
-          if (!synthContextRef.current) {
-            synthContextRef.current = new AudioCtx();
-          }
-          const ctx = synthContextRef.current;
-          if (ctx.state === 'suspended') {
-            ctx.resume();
-          }
-          const source = ctx.createMediaStreamSource(stream);
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 256;
-          source.connect(analyser);
-          
-          setMicStream(stream);
-          setMicAnalyser(analyser);
-          setMicSyncEnabled(true);
-        }
-      } catch (err) {
-        console.warn('Microphone access denied or unavailable:', err);
-        alert('Could not access microphone. Please check your browser permissions.');
-      }
-    }
-  };
-
-  const ensureMicSync = async () => {
-    if (micSyncEnabled || micAnalyser) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        if (!synthContextRef.current) {
-          synthContextRef.current = new AudioCtx();
-        }
-        const ctx = synthContextRef.current;
-        if (ctx.state === 'suspended') {
-          ctx.resume();
-        }
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
-        
-        setMicStream(stream);
-        setMicAnalyser(analyser);
-        setMicSyncEnabled(true);
-      }
-    } catch (err) {
-      console.warn('Microphone auto-sync capture not granted:', err);
-    }
-  };
+  // Web Audio sync references are handled directly through direct element/context connections
 
   // Load YouTube Iframe API once
   useEffect(() => {
@@ -943,7 +877,7 @@ export function DemandingChillies() {
                                                   frequencyType="synthWave" 
                                                   isPlaying={true} 
                                                   bpm={90} 
-                                                  analyser={micAnalyser}
+                                                  analyser={null}
                                                   ytPlayerRef={listYtPlayerRef}
                                                 />
                                                 <div className="relative aspect-video w-full max-w-xl mx-auto rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg">
@@ -962,7 +896,7 @@ export function DemandingChillies() {
                                                   frequencyType="ambientMelody" 
                                                   isPlaying={listAudioPlaying} 
                                                   bpm={80} 
-                                                  analyser={micAnalyser || listAnalyser}
+                                                  analyser={listAnalyser}
                                                   audioElementRef={listAudioRef}
                                                 />
                                                 <audio 
@@ -974,7 +908,6 @@ export function DemandingChillies() {
                                                   autoPlay 
                                                   onPlay={() => {
                                                     setupListAudioAnalyser();
-                                                    ensureMicSync();
                                                     setListAudioPlaying(true);
                                                   }}
                                                   onPause={() => setListAudioPlaying(false)}
@@ -1360,25 +1293,12 @@ export function DemandingChillies() {
                                     <p className="text-xs text-zinc-400">by {activeVibeSong.artist} • {activeVibeSong.bpm} BPM • {activeVibeSong.vibeStyle}</p>
                                   </div>
                                   <div className="flex items-center gap-2 shrink-0">
-                                     <button
-                                       onClick={toggleMicSync}
-                                       className={cn(
-                                         "px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 border cursor-pointer flex items-center gap-1.5 shadow-md",
-                                         micSyncEnabled
-                                           ? "bg-red-600 border-red-600 text-white"
-                                           : "border-white/10 text-zinc-400 hover:text-white bg-zinc-950/30"
-                                       )}
-                                       title="Visualizes actual sound from speakers using mic capture"
-                                     >
-                                       <Mic2 size={14} className={micSyncEnabled ? "animate-pulse" : ""} />
-                                       <span>{micSyncEnabled ? "Mic Sync: ON" : "Mic Sync"}</span>
-                                     </button>
-                                     <button
-                                       onClick={() => setProceduralAudioPlaying(!proceduralAudioPlaying)}
-                                       className="w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white font-black hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
-                                     >
-                                       {proceduralAudioPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-                                     </button>
+                                      <button
+                                        onClick={() => setProceduralAudioPlaying(!proceduralAudioPlaying)}
+                                        className="w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white font-black hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer"
+                                      >
+                                        {proceduralAudioPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                                      </button>
                                    </div>
                                  </div>
 
@@ -1386,7 +1306,7 @@ export function DemandingChillies() {
                                      frequencyType={activeVibeSong.audioFrequency || "ambientMelody"} 
                                      isPlaying={proceduralAudioPlaying} 
                                      bpm={activeVibeSong.bpm}
-                                     analyser={micAnalyser || activeAnalyser}
+                                     analyser={activeAnalyser}
                                      ytPlayerRef={ytPlayerRef}
                                      audioElementRef={vibeAudioRef}
                                    />
@@ -1401,7 +1321,6 @@ export function DemandingChillies() {
                                      onPlay={() => {
                                        setupAudioAnalyser();
                                        setProceduralAudioPlaying(true);
-                                       ensureMicSync();
                                      }}
                                      onPause={() => setProceduralAudioPlaying(false)}
                                    />
@@ -1457,7 +1376,6 @@ export function DemandingChillies() {
                                             <button 
                                               onClick={() => {
                                                 setProceduralAudioPlaying(true);
-                                                ensureMicSync();
                                               }}
                                               className="relative z-10 w-14 h-14 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 shadow-xl shadow-black/50 cursor-pointer"
                                             >
