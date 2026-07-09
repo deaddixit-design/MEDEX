@@ -2703,7 +2703,7 @@ Analyze the user's mood inputs, do a sophisticated mood "vibe check", and return
    
    If enough pool tracks don't match, or you want to expand, you should suggest newly inspired virtual songs with 'id' set to null and 'link' to a reasonable YouTube search query or link, but with wonderful titles and descriptions.
 
-CRITICAL DIRECTIVE FOR SEARCH QUERIES: If the user's input specifies or searches for a particular song title, artist, movie, or music query (for example: "Akela Hai Mr Khiladi", "lofi beats", "jazz brass"), do not treat it as a general emotional state. You MUST prioritize matching or generating a playlist that includes that exact requested song or artist. If the requested item is not in our Available Tracks Pool, you MUST create a virtual song recommendation for that exact song/artist request, with the title set to the requested song name, artist to the correct artist, and link format set so it resolves to that exact song on YouTube (e.g., https://youtube.com/results?search_query=Akela+Hai+Mr+Khiladi).
+CRITICAL DIRECTIVE FOR SEARCH QUERIES: If the user's input specifies or searches for a particular song title, artist, movie, or music query (for example: "Akela Hai Mr Khiladi", "lofi beats", "jazz brass", "milne ki tum kosis karna"), do not treat it as a general emotional state. You MUST prioritize matching or generating a playlist that includes that exact requested song or artist. If the requested item is not in our Available Tracks Pool, you MUST create a virtual song recommendation for that exact song/artist request as the primary result. In addition, you must generate 2-3 other related virtual tracks (such as remixes, cover versions, or other hit tracks by the same artist/genre) so the user gets a complete playlist of results matching their search query. Ensure all links point to search queries that resolve to those specific songs on YouTube.
    
 For each song in the playlist, provide:
 - "id": number (for pool songs) or null (for virtual songs)
@@ -4174,19 +4174,27 @@ function getProceduralFallbackResponse(mood: string) {
 
     // Search existing songs in the database
     const dbSongs = db.prepare("SELECT * FROM demanding_items WHERE type = 'song'").all() as any[];
-    const dbMatch = dbSongs.find(s => 
+    const dbMatches = dbSongs.filter(s => 
       s.title.toLowerCase().includes(m) || 
       (s.description && s.description.toLowerCase().includes(m)) ||
       (s.category && s.category.toLowerCase().includes(m))
     );
 
-    if (dbMatch) {
-      songs = [
-        { id: dbMatch.id, title: dbMatch.title, artist: 'Campus Database Track', vibeStyle: dbMatch.category || 'Trending', bpm: 85, freq: 'ambientMelody', link: dbMatch.link }
-      ];
+    if (dbMatches.length > 0) {
+      songs = dbMatches.map(s => ({
+        id: s.id,
+        title: s.title,
+        artist: 'Campus Database Track',
+        vibeStyle: s.category || 'Trending',
+        bpm: 85,
+        freq: 'ambientMelody',
+        link: s.link
+      }));
     } else {
       songs = [
-        { title: mood, artist: 'VIBE AI Requested Track', vibeStyle: 'Search Result', bpm: 90, freq: 'ambientMelody' }
+        { title: mood, artist: 'VIBE AI Requested Track', vibeStyle: 'Search Result', bpm: 90, freq: 'ambientMelody' },
+        { title: `${mood} (Remix)`, artist: 'VIBE DJ Club Version', vibeStyle: 'Dance Mix', bpm: 120, freq: 'synthWave' },
+        { title: `${mood} (Lofi Version)`, artist: 'The Campus Lofi Syndicate', vibeStyle: 'Lofi Chill', bpm: 75, freq: 'chillHarmonics' }
       ];
     }
   }
