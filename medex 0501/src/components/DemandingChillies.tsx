@@ -54,6 +54,7 @@ export function DemandingChillies() {
   const [addedItems, setAddedItems] = useState<Record<string, boolean>>({});
   const [addingTrackKey, setAddingTrackKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [playMode, setPlayMode] = useState<'video' | 'audio'>('video');
 
   useEffect(() => {
     setSearchQuery('');
@@ -275,12 +276,20 @@ export function DemandingChillies() {
   useEffect(() => {
     if (proceduralAudioPlaying && activeVibeSong) {
       const isDirect = isDirectAudioLink(activeVibeSong.link);
+      const isYT = activeVibeSong.link && (activeVibeSong.link.includes('youtube.com') || activeVibeSong.link.includes('youtu.be'));
+      
       if (isDirect) {
         stopSynth();
         if (vibeAudioRef.current) {
           vibeAudioRef.current.play().catch(err => {
             console.warn('Audio play restricted until user action:', err);
           });
+        }
+      } else if (isYT) {
+        // Stop synthesizer completely when streaming YouTube songs
+        stopSynth();
+        if (vibeAudioRef.current) {
+          vibeAudioRef.current.pause();
         }
       } else {
         if (vibeAudioRef.current) {
@@ -1130,37 +1139,101 @@ export function DemandingChillies() {
                                 )}
 
                                 {isYoutube(activeVibeSong.link) && (
-                                  <div className="bg-black/30 p-2.5 rounded-2xl border border-white/5 space-y-2">
-                                    <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 shadow-inner">
-                                      {proceduralAudioPlaying ? (
-                                        <iframe
-                                          src={getEmbedUrl(activeVibeSong.link)}
-                                          className="w-full h-full border-0"
-                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                          allowFullScreen
-                                        />
-                                      ) : (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 group">
-                                          {getThumbnailUrl(activeVibeSong.link) ? (
-                                            <img 
-                                              src={getThumbnailUrl(activeVibeSong.link)} 
-                                              alt={activeVibeSong.title} 
-                                              className="absolute inset-0 w-full h-full object-cover opacity-35 group-hover:opacity-50 transition-opacity duration-300"
-                                              referrerPolicy="no-referrer"
+                                  <div className="bg-black/30 p-2.5 rounded-2xl border border-white/5 space-y-2.5">
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        onClick={() => setPlayMode('audio')}
+                                        className={cn(
+                                          "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer border",
+                                          playMode === 'audio'
+                                            ? "bg-red-600 border-red-600 text-white shadow-lg shadow-red-650/20"
+                                            : "border-white/10 text-zinc-500 hover:text-white"
+                                        )}
+                                      >
+                                        Audio Mode
+                                      </button>
+                                      <button
+                                        onClick={() => setPlayMode('video')}
+                                        className={cn(
+                                          "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer border",
+                                          playMode === 'video'
+                                            ? "bg-red-600 border-red-600 text-white shadow-lg shadow-red-650/20"
+                                            : "border-white/10 text-zinc-500 hover:text-white"
+                                        )}
+                                      >
+                                        Video Mode
+                                      </button>
+                                    </div>
+
+                                    {playMode === 'video' ? (
+                                      <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 shadow-inner">
+                                        {proceduralAudioPlaying ? (
+                                          <iframe
+                                            src={getEmbedUrl(activeVibeSong.link)}
+                                            className="w-full h-full border-0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allowFullScreen
+                                          />
+                                        ) : (
+                                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 group">
+                                            {getThumbnailUrl(activeVibeSong.link) ? (
+                                              <img 
+                                                src={getThumbnailUrl(activeVibeSong.link)} 
+                                                alt={activeVibeSong.title} 
+                                                className="absolute inset-0 w-full h-full object-cover opacity-35 group-hover:opacity-50 transition-opacity duration-300"
+                                                referrerPolicy="no-referrer"
+                                              />
+                                            ) : null}
+                                            <button 
+                                              onClick={() => setProceduralAudioPlaying(true)}
+                                              className="relative z-10 w-14 h-14 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 shadow-xl shadow-black/50 cursor-pointer"
+                                            >
+                                              <Play size={22} fill="currentColor" className="ml-1" />
+                                            </button>
+                                            <span className="relative z-10 text-xs font-black uppercase tracking-widest text-zinc-400 mt-3 group-hover:text-white transition-colors duration-300">
+                                              Stream Video Deck
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="relative h-44 w-full rounded-xl bg-gradient-to-br from-zinc-900 to-black/90 border border-white/10 shadow-inner flex flex-col items-center justify-center overflow-hidden">
+                                        {proceduralAudioPlaying && (
+                                          <div className="absolute w-[1px] h-[1px] opacity-0 pointer-events-none">
+                                            <iframe
+                                              src={getEmbedUrl(activeVibeSong.link)}
+                                              className="w-full h-full border-0"
+                                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                             />
-                                          ) : null}
+                                          </div>
+                                        )}
+                                        
+                                        <div className={cn(
+                                          "w-20 h-20 rounded-full bg-zinc-950 border-[6px] border-zinc-800 shadow-2xl relative flex items-center justify-center",
+                                          proceduralAudioPlaying ? "animate-spin [animation-duration:8s]" : ""
+                                        )}>
+                                          <div className="absolute inset-1.5 rounded-full border border-zinc-700/30" />
+                                          <div className="absolute inset-3.5 rounded-full border border-zinc-700/30" />
+                                          <div className="absolute inset-5.5 rounded-full border border-zinc-700/30" />
+                                          <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center border border-black/35 shadow-inner">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-white/10" />
+                                          </div>
+                                        </div>
+
+                                        {!proceduralAudioPlaying && (
                                           <button 
                                             onClick={() => setProceduralAudioPlaying(true)}
-                                            className="relative z-10 w-14 h-14 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 shadow-xl shadow-black/50 cursor-pointer"
+                                            className="absolute inset-0 m-auto w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 shadow-lg cursor-pointer"
                                           >
-                                            <Play size={22} fill="currentColor" className="ml-1" />
+                                            <Play size={20} fill="currentColor" className="ml-1" />
                                           </button>
-                                          <span className="relative z-10 text-xs font-black uppercase tracking-widest text-zinc-400 mt-3 group-hover:text-white transition-colors duration-300">
-                                            Stream Video Deck
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
+                                        )}
+
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mt-4 animate-pulse">
+                                          {proceduralAudioPlaying ? "Playing Audio Channel..." : "Audio Mode Muted"}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
 
