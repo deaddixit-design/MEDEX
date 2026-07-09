@@ -1885,6 +1885,30 @@ async function startServer() {
     res.json(items);
   });
 
+  app.post('/api/demanding-items', (req, res) => {
+    const { type, title, link, description, category } = req.body;
+    if (!type || !title || !link) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    try {
+      const existing = db.prepare('SELECT id FROM demanding_items WHERE title = ? AND type = ? AND link = ?').get(title, type, link);
+      if (existing) {
+        return res.json({ id: (existing as any).id, success: true, message: 'Item already in list!' });
+      }
+      const info = db.prepare('INSERT INTO demanding_items (type, title, link, description, category) VALUES (?, ?, ?, ?, ?)').run(
+        type, 
+        title, 
+        link, 
+        description || '', 
+        category || 'Trending'
+      );
+      res.json({ id: info.lastInsertRowid, success: true });
+    } catch (err: any) {
+      console.error('Error adding demanding item:', err);
+      res.status(500).json({ error: 'Could not add item to list' });
+    }
+  });
+
   app.post('/api/admin/demanding-items', requireAdmin, (req, res) => {
     const { type, title, link, description, category } = req.body;
     if (!type || !title || !link) {
@@ -2642,31 +2666,32 @@ Do not return any other text or wrapper. Return ONLY the JSON.`;
 
     try {
       const apiKey = process.env.GEMINI_API_KEY;
+      let playlistData: any;
+
       if (!apiKey) {
         console.warn('GEMINI_API_KEY is not set in environment variables. Falling back to local procedural mood analysis.');
-        return res.json(getProceduralFallbackResponse(mood));
-      }
-
-      const ai = new GoogleGenAI({
-        apiKey: apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
+        playlistData = getProceduralFallbackResponse(mood);
+      } else {
+        const ai = new GoogleGenAI({
+          apiKey: apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
           }
-        }
-      });
+        });
 
-      // Get existing songs from SQLite database to recommend them if they match!
-      const dbSongs = db.prepare("SELECT * FROM demanding_items WHERE type = 'song'").all() as any[];
-      const songPool = dbSongs.map(s => ({
-        id: s.id,
-        title: s.title,
-        description: s.description || '',
-        category: s.category || 'Trending',
-        link: s.link
-      }));
+        // Get existing songs from SQLite database to recommend them if they match!
+        const dbSongs = db.prepare("SELECT * FROM demanding_items WHERE type = 'song'").all() as any[];
+        const songPool = dbSongs.map(s => ({
+          id: s.id,
+          title: s.title,
+          description: s.description || '',
+          category: s.category || 'Trending',
+          link: s.link
+        }));
 
-      const prompt = `You are an expert AI Music DJ & Mood Analyzer for VIBE, our college campus festival and platform.
+        const prompt = `You are an expert AI Music DJ & Mood Analyzer for VIBE, our college campus festival and platform.
 Analyze the user's mood inputs, do a sophisticated mood "vibe check", and return of a JSON containing:
 1. "detectedMood": a 1-2 word mood title.
 2. "moodSummary": a poetic, human, and encouraging 1-2 sentence description of their current state.
@@ -2691,69 +2716,101 @@ For each song in the playlist, provide:
 User's described mood: "${mood}"
 `;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              detectedMood: { type: Type.STRING },
-              moodSummary: { type: Type.STRING },
-              colorPalette: {
-                type: Type.OBJECT,
-                properties: {
-                  primary: { type: Type.STRING },
-                  text: { type: Type.STRING },
-                  border: { type: Type.STRING }
-                },
-                required: ["primary", "text", "border"]
-              },
-              scores: {
-                type: Type.OBJECT,
-                properties: {
-                  happiness: { type: Type.INTEGER },
-                  energy: { type: Type.INTEGER },
-                  focus: { type: Type.INTEGER },
-                  calm: { type: Type.INTEGER }
-                },
-                required: ["happiness", "energy", "focus", "calm"]
-              },
-              playlist: {
-                type: Type.ARRAY,
-                items: {
+        const response = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                detectedMood: { type: Type.STRING },
+                moodSummary: { type: Type.STRING },
+                colorPalette: {
                   type: Type.OBJECT,
                   properties: {
-                    id: { type: Type.INTEGER, nullable: true },
-                    title: { type: Type.STRING },
-                    artist: { type: Type.STRING },
-                    vibeReason: { type: Type.STRING },
-                    vibeStyle: { type: Type.STRING },
-                    bpm: { type: Type.INTEGER },
-                    audioFrequency: { type: Type.STRING },
-                    link: { type: Type.STRING }
+                    primary: { type: Type.STRING },
+                    text: { type: Type.STRING },
+                    border: { type: Type.STRING }
                   },
-                  required: ["title", "artist", "vibeReason", "vibeStyle", "bpm", "audioFrequency", "link"]
+                  required: ["primary", "text", "border"]
+                },
+                scores: {
+                  type: Type.OBJECT,
+                  properties: {
+                    happiness: { type: Type.INTEGER },
+                    energy: { type: Type.INTEGER },
+                    focus: { type: Type.INTEGER },
+                    calm: { type: Type.INTEGER }
+                  },
+                  required: ["happiness", "energy", "focus", "calm"]
+                },
+                playlist: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      id: { type: Type.INTEGER, nullable: true },
+                      title: { type: Type.STRING },
+                      artist: { type: Type.STRING },
+                      vibeReason: { type: Type.STRING },
+                      vibeStyle: { type: Type.STRING },
+                      bpm: { type: Type.INTEGER },
+                      audioFrequency: { type: Type.STRING },
+                      link: { type: Type.STRING }
+                    },
+                    required: ["title", "artist", "vibeReason", "vibeStyle", "bpm", "audioFrequency", "link"]
+                  }
                 }
-              }
-            },
-            required: ["detectedMood", "moodSummary", "colorPalette", "scores", "playlist"]
+              },
+              required: ["detectedMood", "moodSummary", "colorPalette", "scores", "playlist"]
+            }
           }
-        }
-      });
+        });
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error('Empty response from Gemini API');
+        const responseText = response.text;
+        if (!responseText) {
+          throw new Error('Empty response from Gemini API');
+        }
+
+        playlistData = JSON.parse(responseText.trim());
       }
 
-      const playlistData = JSON.parse(responseText.trim());
+      // Resolve all YouTube search links in the playlist
+      if (playlistData && playlistData.playlist) {
+        playlistData.playlist = await Promise.all(
+          playlistData.playlist.map(async (track: any) => {
+            if (track.link && (track.link.includes('results') || track.link.includes('search_query') || !track.id)) {
+              // If it's a search results page or doesn't look like a direct video link, resolve it
+              const isWatchLink = track.link.includes('youtube.com/watch') || track.link.includes('youtu.be/');
+              if (!isWatchLink) {
+                const query = `${track.title} ${track.artist}`;
+                const realLink = await searchYoutubeVideo(query);
+                return { ...track, link: realLink };
+              }
+            }
+            return track;
+          })
+        );
+      }
+
       res.json(playlistData);
 
     } catch (error: any) {
       console.error('[Vibe Check API Error]', error);
-      res.json(getProceduralFallbackResponse(mood));
+      try {
+        const fallbackData = getProceduralFallbackResponse(mood);
+        fallbackData.playlist = await Promise.all(
+          fallbackData.playlist.map(async (track: any) => {
+            const query = `${track.title} ${track.artist}`;
+            const realLink = await searchYoutubeVideo(query);
+            return { ...track, link: realLink };
+          })
+        );
+        res.json(fallbackData);
+      } catch (fbErr) {
+        res.status(500).json({ error: 'Failed to process vibe check request' });
+      }
     }
   });
 
@@ -4030,6 +4087,27 @@ User's described mood: "${mood}"
 }
 
 startServer();
+
+// Search YouTube to resolve search query to real watch video link
+async function searchYoutubeVideo(query: string): Promise<string> {
+  try {
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+      }
+    });
+    if (!res.ok) return url;
+    const text = await res.text();
+    const match = text.match(/\"\/watch\?v=([a-zA-Z0-9_-]{11})\"/);
+    if (match && match[1]) {
+      return `https://www.youtube.com/watch?v=${match[1]}`;
+    }
+  } catch (err) {
+    console.error('Error searching YouTube:', err);
+  }
+  return `https://youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
 
 // Fallback logic for when GEMINI_API_KEY is not defined
 function getProceduralFallbackResponse(mood: string) {
