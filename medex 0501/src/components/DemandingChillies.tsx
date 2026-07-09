@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Music, Camera, Video, ArrowLeft, ExternalLink, Flame, Wind, Guitar, Mic2, Speaker, Disc, Headphones, Play, Pause, Maximize2, X, Eye, Sparkles, Smile, BarChart3, HelpCircle, History, RefreshCw, Send, Radio } from 'lucide-react';
+import { Music, Camera, Video, ArrowLeft, ExternalLink, Flame, Wind, Guitar, Mic2, Speaker, Disc, Headphones, Play, Pause, Maximize2, X, Eye, Sparkles, Smile, BarChart3, HelpCircle, History, RefreshCw, Send, Radio, Plus, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { DemandingItem } from '../types';
@@ -51,6 +51,40 @@ export function DemandingChillies() {
   const [activeVibeSong, setActiveVibeSong] = useState<any>(null);
   const [proceduralAudioPlaying, setProceduralAudioPlaying] = useState(false);
   const [synthesizerStep, setSynthesizerStep] = useState<string>('');
+  const [addedItems, setAddedItems] = useState<Record<string, boolean>>({});
+  const [addingTrackKey, setAddingTrackKey] = useState<string | null>(null);
+
+  const handleAddToList = async (e: React.MouseEvent, track: any, type: 'song' | 'videography') => {
+    e.stopPropagation();
+    const trackKey = `${track.title}-${type}`;
+    if (addedItems[trackKey]) return;
+
+    setAddingTrackKey(trackKey);
+    try {
+      const res = await fetch('/api/demanding-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type,
+          title: track.title,
+          link: track.link,
+          description: track.vibeReason || track.description || `Recommended for vibe: ${track.vibeStyle || 'Trending'}`,
+          category: track.vibeStyle || track.category || 'Trending'
+        })
+      });
+      if (res.ok) {
+        setAddedItems(prev => ({ ...prev, [trackKey]: true }));
+        // Refresh demanding items list immediately so they show up on other tabs
+        fetchItems();
+      } else {
+        console.error('Failed to add track to list');
+      }
+    } catch (err) {
+      console.error('Error adding track:', err);
+    } finally {
+      setAddingTrackKey(null);
+    }
+  };
 
   const vibeAudioRef = React.useRef<HTMLAudioElement | null>(null);
   const synthContextRef = React.useRef<AudioContext | null>(null);
@@ -620,15 +654,26 @@ export function DemandingChillies() {
                                               className="py-4 overflow-hidden"
                                             >
                                           <div className="px-0 md:px-4">
-                                            <audio 
-                                              key={song.id}
-                                              src={getDirectUrl(song.link)}
-                                              controls 
-                                              autoPlay 
-                                              className="w-full h-10 md:h-14"
-                                            >
-                                              Your browser does not support the audio element.
-                                            </audio>
+                                            {isYoutube(song.link) ? (
+                                              <div className="relative aspect-video w-full max-w-xl mx-auto rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg">
+                                                <iframe
+                                                  src={getEmbedUrl(song.link)}
+                                                  className="w-full h-full border-0"
+                                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                  allowFullScreen
+                                                />
+                                              </div>
+                                            ) : (
+                                              <audio 
+                                                key={song.id}
+                                                src={getDirectUrl(song.link)}
+                                                controls 
+                                                autoPlay 
+                                                className="w-full h-10 md:h-14"
+                                              >
+                                                Your browser does not support the audio element.
+                                              </audio>
+                                            )}
                                           </div>
                                             </motion.div>
                                           </td>
@@ -999,7 +1044,7 @@ export function DemandingChillies() {
                                 <div className="flex items-center justify-between gap-4">
                                   <div>
                                     <span className="text-[10px] font-black uppercase text-red-500 tracking-widest">
-                                      {isDirectAudioLink(activeVibeSong.link) ? "High-Demand Audio Channel" : "Active Modulation Channel"}
+                                      {isDirectAudioLink(activeVibeSong.link) ? "High-Demand Audio Channel" : isYoutube(activeVibeSong.link) ? "High-Demand Video Deck" : "Active Modulation Channel"}
                                     </span>
                                     <h3 className="font-black text-sm md:text-lg text-white">{activeVibeSong.title}</h3>
                                     <p className="text-xs text-zinc-400">by {activeVibeSong.artist} • {activeVibeSong.bpm} BPM • {activeVibeSong.vibeStyle}</p>
@@ -1029,10 +1074,47 @@ export function DemandingChillies() {
                                   </div>
                                 )}
 
+                                {isYoutube(activeVibeSong.link) && (
+                                  <div className="bg-black/30 p-2.5 rounded-2xl border border-white/5 space-y-2">
+                                    <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 shadow-inner">
+                                      {proceduralAudioPlaying ? (
+                                        <iframe
+                                          src={getEmbedUrl(activeVibeSong.link)}
+                                          className="w-full h-full border-0"
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                          allowFullScreen
+                                        />
+                                      ) : (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 group">
+                                          {getThumbnailUrl(activeVibeSong.link) ? (
+                                            <img 
+                                              src={getThumbnailUrl(activeVibeSong.link)} 
+                                              alt={activeVibeSong.title} 
+                                              className="absolute inset-0 w-full h-full object-cover opacity-35 group-hover:opacity-50 transition-opacity duration-300"
+                                              referrerPolicy="no-referrer"
+                                            />
+                                          ) : null}
+                                          <button 
+                                            onClick={() => setProceduralAudioPlaying(true)}
+                                            className="relative z-10 w-14 h-14 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 shadow-xl shadow-black/50 cursor-pointer"
+                                          >
+                                            <Play size={22} fill="currentColor" className="ml-1" />
+                                          </button>
+                                          <span className="relative z-10 text-xs font-black uppercase tracking-widest text-zinc-400 mt-3 group-hover:text-white transition-colors duration-300">
+                                            Stream Video Deck
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
                                 <div className="flex items-center justify-between text-xs text-zinc-500">
                                   <span>
                                     {isDirectAudioLink(activeVibeSong.link) 
                                       ? "Streaming High-Demand MP3 Deck" 
+                                      : isYoutube(activeVibeSong.link)
+                                      ? "Streaming YouTube Player Deck"
                                       : "Waveform Procedural Synthesizer Active"}
                                   </span>
                                   {activeVibeSong.link && (
@@ -1102,6 +1184,59 @@ export function DemandingChillies() {
                                         <p className="text-xs text-zinc-500 line-clamp-2 italic leading-relaxed pt-1">
                                           "{track.vibeReason}"
                                         </p>
+
+                                        {/* Action buttons (Add to list & external play) */}
+                                        <div className="flex flex-wrap items-center justify-end gap-2 pt-2.5 mt-2 border-t border-white/5">
+                                          <button
+                                            onClick={(e) => handleAddToList(e, track, 'song')}
+                                            className={cn(
+                                              "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 cursor-pointer",
+                                              addedItems[`${track.title}-song`]
+                                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                                : addingTrackKey === `${track.title}-song`
+                                                ? "bg-zinc-800 text-zinc-500 border border-white/5 cursor-wait"
+                                                : "bg-zinc-950 hover:bg-red-600/10 text-zinc-300 hover:text-red-500 border border-white/5 hover:border-red-500/30"
+                                            )}
+                                            disabled={addedItems[`${track.title}-song`] || addingTrackKey === `${track.title}-song`}
+                                          >
+                                            {addedItems[`${track.title}-song`] ? (
+                                              <>
+                                                <Check size={10} />
+                                                <span>Added to Audio</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Plus size={10} />
+                                                <span>Add to Audio</span>
+                                              </>
+                                            )}
+                                          </button>
+
+                                          <button
+                                            onClick={(e) => handleAddToList(e, track, 'videography')}
+                                            className={cn(
+                                              "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 cursor-pointer",
+                                              addedItems[`${track.title}-videography`]
+                                                ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                                : addingTrackKey === `${track.title}-videography`
+                                                ? "bg-zinc-800 text-zinc-500 border border-white/5 cursor-wait"
+                                                : "bg-zinc-950 hover:bg-red-600/10 text-zinc-300 hover:text-red-500 border border-white/5 hover:border-red-500/30"
+                                            )}
+                                            disabled={addedItems[`${track.title}-videography`] || addingTrackKey === `${track.title}-videography`}
+                                          >
+                                            {addedItems[`${track.title}-videography`] ? (
+                                              <>
+                                                <Check size={10} />
+                                                <span>Added to Video</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Plus size={10} />
+                                                <span>Add to Video</span>
+                                              </>
+                                            )}
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   );
