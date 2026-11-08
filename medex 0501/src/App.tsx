@@ -18,6 +18,7 @@ import { StudentPortal } from './components/StudentPortal';
 import { UserManual } from './components/UserManual';
 import { ProgramProvider, useProgram } from './lib/ProgramContext';
 import { BreakingNewsBar } from './components/BreakingNewsBar';
+import { NotificationManager } from './components/NotificationManager';
 import { motion } from 'motion/react';
 import { Sparkles, Image, List, ArrowRight, GraduationCap, Archive, ArrowUpRight, Compass, Activity, HeartPulse, BookOpen, FileText, Library, Microscope } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -668,6 +669,7 @@ export default function App() {
         <div className={`min-h-screen bg-white font-sans selection:bg-black selection:text-white transition-all duration-500 ease-in-out ${navbarHidden ? 'pt-0' : 'pt-16'}`}>
           <Navbar />
           <BreakingNewsBar />
+          <NotificationManager />
           <main>
             <Routes>
               <Route path="/" element={<Home />} />
