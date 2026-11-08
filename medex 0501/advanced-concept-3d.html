@@ -324,14 +324,25 @@
                 </svg>
               </a>
 
-              <a 
-                href="clia-simulation.html?mode=fullscreen" 
-                class="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs uppercase tracking-wider text-teal-300 bg-zinc-900/90 hover:bg-zinc-800 border border-teal-500/30 hover:border-teal-400 shadow-sm transition-all cursor-pointer"
-                title="Play CLIA 3D Simulation directly in Mobile Fullscreen"
-              >
-                <svg class="w-3.5 h-3.5 text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-                <span>Mobile Fullscreen Mode</span>
-              </a>
+              <div class="grid grid-cols-2 gap-2">
+                <a 
+                  href="clia-simulation.html?mode=horizontal" 
+                  class="inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider text-teal-300 bg-zinc-900/90 hover:bg-zinc-800 border border-teal-500/30 hover:border-teal-400 shadow-sm transition-all cursor-pointer text-center"
+                  title="Play CLIA Simulation in Horizontal Fullscreen (Mobile/Android)"
+                >
+                  <svg class="w-3.5 h-3.5 text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M7 12h10"/></svg>
+                  <span>📱 Horizontal 3D</span>
+                </a>
+
+                <a 
+                  href="clia-simulation.html?mode=fitted_ui" 
+                  class="inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider text-cyan-300 bg-zinc-900/90 hover:bg-zinc-800 border border-cyan-500/30 hover:border-cyan-400 shadow-sm transition-all cursor-pointer text-center"
+                  title="Fit Entire UI with Kinetics in Fullscreen"
+                >
+                  <svg class="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+                  <span>📊 Fit Entire UI</span>
+                </a>
+              </div>
             </div>
 
           </div>
@@ -700,14 +711,25 @@
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-zinc-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                 </a>
 
-                <a 
-                  href="${(launchUrl.startsWith('http') || launchUrl.startsWith('/') ? launchUrl : '/' + launchUrl) + (launchUrl.includes('?') ? '&mode=fullscreen' : '?mode=fullscreen')}" 
-                  class="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bold text-xs uppercase tracking-wider text-teal-300 bg-zinc-900/90 hover:bg-zinc-800 border border-teal-500/30 hover:border-teal-400 shadow-sm transition-all cursor-pointer"
-                  title="Play ${item.title} directly in Mobile Fullscreen"
-                >
-                  <svg class="w-3.5 h-3.5 text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-                  <span>Mobile Fullscreen Mode</span>
-                </a>
+                <div class="grid grid-cols-2 gap-2">
+                  <a 
+                    href="${(launchUrl.startsWith('http') || launchUrl.startsWith('/') ? launchUrl : '/' + launchUrl) + (launchUrl.includes('?') ? '&mode=horizontal' : '?mode=horizontal')}" 
+                    class="inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider text-teal-300 bg-zinc-900/90 hover:bg-zinc-800 border border-teal-500/30 hover:border-teal-400 shadow-sm transition-all cursor-pointer text-center"
+                    title="Play ${item.title} in Horizontal Fullscreen (Mobile/Android)"
+                  >
+                    <svg class="w-3.5 h-3.5 text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M7 12h10"/></svg>
+                    <span>📱 Horizontal 3D</span>
+                  </a>
+
+                  <a 
+                    href="${(launchUrl.startsWith('http') || launchUrl.startsWith('/') ? launchUrl : '/' + launchUrl) + (launchUrl.includes('?') ? '&mode=fitted_ui' : '?mode=fitted_ui')}" 
+                    class="inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl font-bold text-[11px] uppercase tracking-wider text-cyan-300 bg-zinc-900/90 hover:bg-zinc-800 border border-cyan-500/30 hover:border-cyan-400 shadow-sm transition-all cursor-pointer text-center"
+                    title="Fit Entire UI with Kinetics in Fullscreen"
+                  >
+                    <svg class="w-3.5 h-3.5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+                    <span>📊 Fit Entire UI</span>
+                  </a>
+                </div>
               ` : `
                 <button disabled class="w-full py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider text-zinc-500 bg-zinc-900/80 border border-zinc-800 cursor-not-allowed">
                   <span>Coming Soon</span>
