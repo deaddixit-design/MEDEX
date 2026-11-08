@@ -41,6 +41,20 @@ export function NewsUpdates() {
     fetchNews();
   }, []);
 
+  // Auto-open specific news bulletin if linked directly or via push notification (?id=123)
+  useEffect(() => {
+    if (news.length > 0) {
+      const searchParams = new URLSearchParams(window.location.search);
+      const targetId = searchParams.get('id');
+      if (targetId) {
+        const found = news.find((item) => String(item.id) === targetId);
+        if (found) {
+          setSelectedItem(found);
+        }
+      }
+    }
+  }, [news]);
+
   const categories = ['All', ...Array.from(new Set(news.map((item) => item.category || 'General')))];
 
   const filteredNews = news.filter((item) => {
