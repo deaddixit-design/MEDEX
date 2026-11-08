@@ -4751,14 +4751,25 @@ export function AdminPanel() {
 
                             <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                               {item.model_url && item.model_url !== '#' && (
-                                <a
-                                  href={item.model_url.startsWith('http') || item.model_url.startsWith('/') ? item.model_url : '/' + item.model_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl font-black font-mono text-[10px] uppercase transition flex items-center gap-1 border border-cyan-200"
-                                >
-                                  <Play size={12} /> Launch
-                                </a>
+                                <>
+                                  <a
+                                    href={item.model_url.startsWith('http') || item.model_url.startsWith('/') ? item.model_url : '/' + item.model_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl font-black font-mono text-[10px] uppercase transition flex items-center gap-1 border border-cyan-200"
+                                  >
+                                    <Play size={12} /> Launch
+                                  </a>
+                                  <a
+                                    href={(item.model_url.startsWith('http') || item.model_url.startsWith('/') ? item.model_url : '/' + item.model_url) + (item.model_url.includes('?') ? '&mode=fullscreen' : '?mode=fullscreen')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl font-black font-mono text-[9px] uppercase transition flex items-center gap-1 border border-zinc-200"
+                                    title="Preview in Fullscreen Mode"
+                                  >
+                                    Fullscreen
+                                  </a>
+                                </>
                               )}
                               <button
                                 type="button"
@@ -8695,14 +8706,25 @@ export function AdminPanel() {
                               </td>
                               <td className="py-3 px-4 text-right space-x-2">
                                 {item.model_url && item.model_url !== '#' && (
-                                  <a
-                                    href={item.model_url.startsWith('http') || item.model_url.startsWith('/') ? item.model_url : '/' + item.model_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-lg font-bold font-mono text-[9px] uppercase transition inline-flex items-center gap-1 border border-teal-200"
-                                  >
-                                    <Play size={10} /> Launch
-                                  </a>
+                                  <>
+                                    <a
+                                      href={item.model_url.startsWith('http') || item.model_url.startsWith('/') ? item.model_url : '/' + item.model_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-lg font-bold font-mono text-[9px] uppercase transition inline-flex items-center gap-1 border border-teal-200"
+                                    >
+                                      <Play size={10} /> Launch
+                                    </a>
+                                    <a
+                                      href={(item.model_url.startsWith('http') || item.model_url.startsWith('/') ? item.model_url : '/' + item.model_url) + (item.model_url.includes('?') ? '&mode=fullscreen' : '?mode=fullscreen')}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg font-bold font-mono text-[9px] uppercase transition inline-flex items-center gap-1 border border-zinc-200"
+                                      title="Preview in Fullscreen Mode"
+                                    >
+                                      Fullscreen
+                                    </a>
+                                  </>
                                 )}
                                 <button
                                   onClick={() => {
