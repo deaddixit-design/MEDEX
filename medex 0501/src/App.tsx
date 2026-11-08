@@ -638,6 +638,13 @@ function Performances() {
   );
 }
 
+function AdvancedConcept3dRedirect() {
+  useEffect(() => {
+    window.location.href = '/advanced-concept-3d.html';
+  }, []);
+  return null;
+}
+
 export default function App() {
   const [navbarHidden, setNavbarHidden] = useState(false);
 
@@ -674,6 +681,8 @@ export default function App() {
               <Route path="/batches" element={<BatchMemories />} />
               <Route path="/bmlt" element={<BmltHub />} />
               <Route path="/library" element={<ContentLibrary />} />
+              <Route path="/advanced-concept-3d" element={<AdvancedConcept3dRedirect />} />
+              <Route path="/advanced-concept-3d.html" element={<AdvancedConcept3dRedirect />} />
               <Route path="/news" element={<NewsUpdates />} />
               <Route path="/student" element={<StudentPortal />} />
               <Route path="/manual" element={<UserManual />} />
