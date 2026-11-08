@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Plus, Sparkles, Image, List, ShieldAlert, LogOut, UserPlus, Key, User, CheckCircle2, XCircle, X, FileSpreadsheet, RefreshCw, Settings, Copy, Check, Eye, EyeOff, ExternalLink, MessageSquare, Phone, Music, Video, Edit, Link as LinkIcon, Flame, Disc, Play, GraduationCap, BookOpen, Beaker, FileText, Layers, Activity, ChevronLeft, ChevronRight, Presentation, Newspaper, HelpCircle, Microscope, ChevronUp, ChevronDown, Box, Upload } from 'lucide-react';
+import { Trash2, Plus, Sparkles, Image, List, ShieldAlert, LogOut, UserPlus, Key, User, CheckCircle2, XCircle, X, FileSpreadsheet, RefreshCw, Settings, Copy, Check, Eye, EyeOff, ExternalLink, MessageSquare, Phone, Music, Video, Edit, Link as LinkIcon, Flame, Disc, Play, GraduationCap, BookOpen, Beaker, FileText, Layers, Activity, ChevronLeft, ChevronRight, Presentation, Newspaper, HelpCircle, Microscope, ChevronUp, ChevronDown, Box, Upload, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MedexLogo } from './MedexLogo';
 
@@ -157,7 +157,8 @@ export function AdminPanel() {
     author_name: 'Admin',
     category: 'General',
     image_url: '',
-    file_path: ''
+    file_path: '',
+    send_push: true
   });
   const [editingNewsItem, setEditingNewsItem] = useState<any | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -2409,14 +2410,17 @@ export function AdminPanel() {
       });
       
       if (res.ok) {
-        showNotification(isEditing ? 'News update modified successfully!' : 'News update published successfully!');
+        const resData = await res.json().catch(() => ({}));
+        const pushMsg = resData.push_sent ? ' & push notification sent to users!' : ' successfully!';
+        showNotification(isEditing ? 'News update modified successfully!' : `News bulletin published${pushMsg}`);
         setNewNewsForm({
           title: '',
           content: '',
           author_name: 'Admin',
           category: 'General',
           image_url: '',
-          file_path: ''
+          file_path: '',
+          send_push: true
         });
         setEditingNewsItem(null);
         fetchAdminNews();
@@ -7288,6 +7292,27 @@ export function AdminPanel() {
                       className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white resize-none" 
                     />
                   </div>
+
+                  {/* Real-time Push Notification Broadcast Toggle */}
+                  <div className="p-3.5 bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-xl flex items-start gap-2.5 shadow-xs">
+                    <input 
+                      type="checkbox"
+                      id="news_send_push"
+                      checked={newNewsForm.send_push !== false}
+                      onChange={e => setNewNewsForm({ ...newNewsForm, send_push: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 rounded text-teal-600 border-teal-300 focus:ring-teal-500 cursor-pointer accent-teal-600"
+                    />
+                    <label htmlFor="news_send_push" className="text-xs font-bold text-teal-950 cursor-pointer select-none">
+                      <span className="flex items-center gap-1.5 font-black uppercase text-[10px] text-teal-700 tracking-wider">
+                        <Bell size={13} className="text-teal-600 animate-pulse" />
+                        Push Notification to Users
+                      </span>
+                      <span className="block text-[11px] text-teal-900 font-medium mt-0.5">
+                        Send real-time in-app alert & browser push notification to all students and active visitors immediately.
+                      </span>
+                    </label>
+                  </div>
+
                   <div className="flex gap-2">
                     {editingNewsItem && (
                       <button 
@@ -7300,7 +7325,8 @@ export function AdminPanel() {
                             author_name: 'Admin',
                             category: 'General',
                             image_url: '',
-                            file_path: ''
+                            file_path: '',
+                            send_push: true
                           });
                         }} 
                         className="flex-1 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 py-4 rounded-xl font-black transition-all"
@@ -7359,7 +7385,8 @@ export function AdminPanel() {
                               author_name: item.author_name,
                               category: item.category || 'General',
                               image_url: item.image_url || '',
-                              file_path: item.file_path || ''
+                              file_path: item.file_path || '',
+                              send_push: false
                             });
                           }}
                           className="p-2.5 text-zinc-400 hover:text-teal-650 hover:bg-teal-50 rounded-lg transition-all"
