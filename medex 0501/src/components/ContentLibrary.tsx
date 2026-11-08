@@ -33,8 +33,7 @@ import {
   ArrowUp,
   ArrowDown,
   ZoomIn,
-  ZoomOut,
-  Box
+  ZoomOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PdfJsViewer } from './PdfJsViewer';
@@ -3116,7 +3115,11 @@ export function ContentLibrary() {
                       className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10.5px] font-black transition-all shrink-0 active:scale-95 cursor-pointer border snap-start bg-gradient-to-r from-teal-950 via-slate-900 to-indigo-950 text-teal-300 border-teal-500/50 hover:border-teal-400 shadow-sm"
                       title="Open Advanced Concept 3D Gallery"
                     >
-                      <Box size={11.5} className="text-teal-400 animate-pulse" />
+                      <svg className="w-3 h-3 text-teal-400 animate-pulse shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                      </svg>
                       <span className="leading-none">Advanced Concept 3D</span>
                     </a>
                     {subjects.map((sub) => {
@@ -3210,7 +3213,11 @@ export function ContentLibrary() {
                     className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all border shadow-sm cursor-pointer bg-gradient-to-r from-teal-950 via-slate-900 to-indigo-950 text-teal-300 border-teal-500/50 hover:border-teal-400 hover:scale-102"
                     title="Open Advanced Concept 3D Gallery"
                   >
-                    <Box size={13} className="text-teal-400 animate-pulse" />
+                    <svg className="w-3.5 h-3.5 text-teal-400 animate-pulse shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
                     <span className="leading-none">Advanced Concept 3D</span>
                   </a>
                   {subjects.map((sub) => {
@@ -3240,7 +3247,11 @@ export function ContentLibrary() {
                   className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 via-cyan-500 to-indigo-600 text-white shadow-md hover:shadow-cyan-500/25 hover:scale-102 active:scale-95 transition-all border border-teal-400/30"
                   title="Open Advanced Concept 3D Gallery"
                 >
-                  <Box size={13} className="animate-pulse text-white" />
+                  <svg className="w-3.5 h-3.5 text-white animate-pulse shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                  </svg>
                   <span>Advanced Concept 3D</span>
                 </a>
 
@@ -3973,7 +3984,11 @@ export function ContentLibrary() {
                           <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-ping"></span>
                           3D GALLERY
                         </span>
-                        <Box size={14} className="text-teal-400 animate-pulse" />
+                        <svg className="w-4 h-4 text-teal-400 animate-pulse shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
                       </div>
 
                       <div className="space-y-1 z-10">
