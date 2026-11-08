@@ -551,7 +551,7 @@ try {
     )
   `).run();
 
-  const countConcept = (db.prepare('SELECT COUNT(*) as cnt FROM concept_3d_items').get() as { cnt: number }).cnt;
+  const countConcept = (db.prepare('SELECT COUNT(*) as cnt FROM concept_3d_items').get() as { cnt: number } | undefined)?.cnt || 0;
   if (countConcept === 0) {
     const insertConcept = db.prepare('INSERT INTO concept_3d_items (title, category, description, model_url, badge, status) VALUES (?, ?, ?, ?, ?, ?)');
     insertConcept.run(
