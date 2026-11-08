@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trash2, Plus, Sparkles, Image, List, ShieldAlert, LogOut, UserPlus, Key, User, CheckCircle2, XCircle, X, FileSpreadsheet, RefreshCw, Settings, Copy, Check, Eye, EyeOff, ExternalLink, MessageSquare, Phone, Music, Video, Edit, Link as LinkIcon, Flame, Disc, Play, GraduationCap, BookOpen, Beaker, FileText, Layers, Activity, ChevronLeft, ChevronRight, Presentation, Newspaper, HelpCircle, Microscope, ChevronUp, ChevronDown } from 'lucide-react';
+import { Trash2, Plus, Sparkles, Image, List, ShieldAlert, LogOut, UserPlus, Key, User, CheckCircle2, XCircle, X, FileSpreadsheet, RefreshCw, Settings, Copy, Check, Eye, EyeOff, ExternalLink, MessageSquare, Phone, Music, Video, Edit, Link as LinkIcon, Flame, Disc, Play, GraduationCap, BookOpen, Beaker, FileText, Layers, Activity, ChevronLeft, ChevronRight, Presentation, Newspaper, HelpCircle, Microscope, ChevronUp, ChevronDown, Box, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MedexLogo } from './MedexLogo';
 
@@ -166,8 +166,19 @@ export function AdminPanel() {
   const [mltLabParams, setMltLabParams] = useState<any[]>([]);
   const [mltMcqs, setMltMcqs] = useState<any[]>([]);
   const [mltCases, setMltCases] = useState<any[]>([]);
-  const [mltSubTab, setMltSubTab] = useState<'slides' | 'lab_params' | 'cases' | 'mcqs'>('slides');
+  const [mltSubTab, setMltSubTab] = useState<'slides' | 'lab_params' | 'cases' | 'mcqs' | 'concept_3d'>('slides');
   const [mltLoading, setMltLoading] = useState<boolean>(false);
+  const [concept3dItems, setConcept3dItems] = useState<any[]>([]);
+  const [conceptUploadLoading, setConceptUploadLoading] = useState<boolean>(false);
+  const [conceptForm, setConceptForm] = useState({
+    id: null as number | null,
+    title: '',
+    category: 'Chemiluminescence Immunoassay',
+    description: '',
+    model_url: 'clia-simulation.html',
+    badge: 'Active Simulation',
+    status: 'available'
+  });
 
   // Forms
   const [slideForm, setSlideForm] = useState({
@@ -279,7 +290,7 @@ export function AdminPanel() {
   // Library Database Content Manager states
   const [dbSubTab, setDbSubTab] = useState<'records' | 'library' | 'mlt_desk'>('records');
   const [eventsSubTab, setEventsSubTab] = useState<'programs' | 'performances' | 'demanding'>('programs');
-  const [libraryManageSection, setLibraryManageSection] = useState<'subjects' | 'topics' | 'articles' | 'books' | 'bookdocs'>('subjects');
+  const [libraryManageSection, setLibraryManageSection] = useState<'subjects' | 'topics' | 'articles' | 'books' | 'bookdocs' | 'concept_3d'>('subjects');
 
   const [libSubjects, setLibSubjects] = useState<any[]>([]);
   const [libTopics, setLibTopics] = useState<any[]>([]);
@@ -320,11 +331,12 @@ export function AdminPanel() {
 
   const loadLibraryAdminData = async () => {
     try {
-      const [subjRes, bookRes, artRes, bdocRes] = await Promise.all([
+      const [subjRes, bookRes, artRes, bdocRes, conceptRes] = await Promise.all([
         fetch('/api/content/subjects'),
         fetch('/api/books'),
         fetch('/api/content/all-articles'),
-        fetch('/api/content/all-book-documents')
+        fetch('/api/content/all-book-documents'),
+        fetch('/api/concept-3d')
       ]);
 
       if (subjRes.ok) {
@@ -342,6 +354,10 @@ export function AdminPanel() {
       if (bdocRes.ok) {
         const bdocs = await bdocRes.json();
         setLibBookDocs(Array.isArray(bdocs) ? bdocs : []);
+      }
+      if (conceptRes && conceptRes.ok) {
+        const concepts = await conceptRes.json();
+        setConcept3dItems(Array.isArray(concepts) ? concepts : []);
       }
     } catch (err) {
       console.error('Error fetching admin library data:', err);
@@ -1154,11 +1170,12 @@ export function AdminPanel() {
   const fetchMltDeskData = async () => {
     try {
       setMltLoading(true);
-      const [resSlides, resParams, resMcqs, resCases] = await Promise.all([
+      const [resSlides, resParams, resMcqs, resCases, resConcept] = await Promise.all([
         fetch('/api/bmlt/slides'),
         fetch('/api/bmlt/lab-params'),
         fetch('/api/bmlt/mcqs'),
-        fetch('/api/bmlt/cases')
+        fetch('/api/bmlt/cases'),
+        fetch('/api/concept-3d')
       ]);
       if (resSlides.ok) {
         const rawSlides = await resSlides.json();
@@ -1172,6 +1189,10 @@ export function AdminPanel() {
       if (resParams.ok) setMltLabParams(await resParams.json());
       if (resMcqs.ok) setMltMcqs(await resMcqs.json());
       if (resCases.ok) setMltCases(await resCases.json());
+      if (resConcept && resConcept.ok) {
+        const concepts = await resConcept.json();
+        setConcept3dItems(Array.isArray(concepts) ? concepts : []);
+      }
     } catch (err) {
       console.error("Error fetching MLT Admin data:", err);
     } finally {
@@ -1390,6 +1411,102 @@ export function AdminPanel() {
       }
     } catch (err) {
       showNotification('Error executing MCQ deletion.', 'error');
+    }
+  };
+
+  // Concept 3D Simulation Handlers
+  const handleSaveConcept3d = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const isEdit = conceptForm.id !== null;
+      const url = isEdit ? `/api/admin/concept-3d/${conceptForm.id}` : '/api/admin/concept-3d';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await authenticatedFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: conceptForm.title,
+          category: conceptForm.category,
+          description: conceptForm.description,
+          model_url: conceptForm.model_url,
+          badge: conceptForm.badge,
+          status: conceptForm.status
+        })
+      });
+
+      if (res.ok) {
+        showNotification(isEdit ? '3D Simulation module updated successfully!' : '3D Simulation module created successfully!', 'success');
+        setConceptForm({
+          id: null,
+          title: '',
+          category: 'Chemiluminescence Immunoassay',
+          description: '',
+          model_url: 'clia-simulation.html',
+          badge: 'Active Simulation',
+          status: 'available'
+        });
+        setShowMltForm(false);
+        fetchMltDeskData();
+        loadLibraryAdminData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showNotification(data.error || 'Operation failed. Please try again.', 'error');
+      }
+    } catch (err: any) {
+      showNotification('Error saving 3D simulation item.', 'error');
+    }
+  };
+
+  const handleDeleteConcept3d = async (id: number) => {
+    if (!window.confirm('Are you sure you want to permanently delete this 3D simulation concept module?')) return;
+    try {
+      const res = await authenticatedFetch(`/api/admin/concept-3d/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        showNotification('3D Simulation module deleted successfully!', 'success');
+        fetchMltDeskData();
+        loadLibraryAdminData();
+      } else {
+        showNotification('Failed to delete 3D simulation module.', 'error');
+      }
+    } catch (err) {
+      showNotification('Error executing deletion.', 'error');
+    }
+  };
+
+  const handleConceptFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.html') && !file.name.toLowerCase().endsWith('.htm')) {
+      showNotification('Please select a valid .html simulation file (e.g., clia-simulation.html)', 'error');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      setConceptUploadLoading(true);
+      const res = await authenticatedFetch('/api/admin/concept-3d/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showNotification(`Simulation file "${data.filename}" uploaded successfully!`, 'success');
+        setConceptForm(prev => ({
+          ...prev,
+          model_url: data.filename,
+          title: prev.title || data.filename.replace(/\.html?$/i, '').replace(/[-_]/g, ' ').toUpperCase()
+        }));
+      } else {
+        showNotification(data.error || 'Upload failed', 'error');
+      }
+    } catch (err: any) {
+      showNotification('Upload failed: ' + (err.message || 'Network error'), 'error');
+    } finally {
+      setConceptUploadLoading(false);
+      e.target.value = '';
     }
   };
 
@@ -3616,13 +3733,14 @@ export function AdminPanel() {
           </div>
 
           {/* Bento Quick Selector cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
             {[
               { id: 'subjects', label: 'Departments', count: libSubjects.length, icon: Layers, color: 'text-rose-600 bg-rose-50 border-rose-100 hover:border-rose-300' },
               { id: 'topics', label: 'Syllabus Topics', count: libTopics.length, icon: BookOpen, color: 'text-indigo-600 bg-indigo-50 border-indigo-100 hover:border-indigo-300' },
               { id: 'articles', label: 'Notes & Lectures', count: libArticles.length, icon: FileText, color: 'text-teal-600 bg-teal-50 border-teal-100 hover:border-teal-300' },
               { id: 'books', label: 'Reference Books', count: libBooks.length, icon: Presentation, color: 'text-amber-600 bg-amber-50 border-amber-100 hover:border-amber-300' },
-              { id: 'bookdocs', label: 'Book Chapters', count: libBookDocs.length, icon: GraduationCap, color: 'text-violet-600 bg-violet-50 border-violet-100 hover:border-violet-300' }
+              { id: 'bookdocs', label: 'Book Chapters', count: libBookDocs.length, icon: GraduationCap, color: 'text-violet-600 bg-violet-50 border-violet-100 hover:border-violet-300' },
+              { id: 'concept_3d', label: '3D Simulations', count: concept3dItems.length, icon: Box, color: 'text-cyan-600 bg-cyan-50 border-cyan-100 hover:border-cyan-300' }
             ].map(sec => {
               const IconComponent = sec.icon;
               const isActive = libraryManageSection === sec.id;
@@ -3642,6 +3760,7 @@ export function AdminPanel() {
                     setNewArticleForm({ headline: '', content: '', author_name: '', section: 'textbook', file: null, allow_download: 1 });
                     setNewBookForm({ title: '', author_name: 'BMLT Director', cover_color: 'teal', allow_download: 1 });
                     setNewBookDocForm({ title: '', author_name: 'BMLT Scholar', file: null, allow_download: 1 });
+                    setConceptForm({ id: null, title: '', category: 'Chemiluminescence Immunoassay', description: '', model_url: 'clia-simulation.html', badge: 'Active Simulation', status: 'available' });
                   }}
                   className={cn(
                     "p-4 rounded-2xl flex flex-col items-center justify-center text-center border transition-all shadow-sm relative overflow-hidden",
@@ -4444,6 +4563,232 @@ export function AdminPanel() {
                           })
                       )}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 3D CONCEPT SIMULATIONS MANAGEMENT */}
+              {libraryManageSection === 'concept_3d' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Left: Add / Edit Form */}
+                  <div className="bg-zinc-50 p-6 rounded-[2rem] border border-zinc-200 text-left">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-black uppercase tracking-wider text-cyan-900 flex items-center gap-2">
+                        {conceptForm.id ? <Edit size={16} /> : <Plus size={16} />}
+                        {conceptForm.id ? 'Edit 3D Simulation' : 'Add 3D Simulation'}
+                      </h4>
+                      <a 
+                        href="/advanced-concept-3d.html" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-bold text-teal-600 hover:text-teal-700 underline flex items-center gap-1"
+                      >
+                        View Gallery <ExternalLink size={10} />
+                      </a>
+                    </div>
+
+                    <form onSubmit={handleSaveConcept3d} className="space-y-4">
+                      {/* Direct HTML File Upload */}
+                      <div className="p-3 bg-cyan-50/70 rounded-xl border border-cyan-200/80 space-y-2">
+                        <label className="text-[11px] font-black text-cyan-900 uppercase flex items-center gap-1.5">
+                          <Upload size={14} className="text-cyan-700" /> Upload Simulation File (.html)
+                        </label>
+                        <p className="text-[10px] text-cyan-800/80 font-medium leading-tight">
+                          Select a standalone 3D simulation or model HTML file (e.g. <code>clia-simulation.html</code>). It will be saved into your website's public root and populate the fields below automatically.
+                        </p>
+                        <input
+                          type="file"
+                          accept=".html,.htm"
+                          disabled={conceptUploadLoading}
+                          onChange={handleConceptFileUpload}
+                          className="w-full text-xs text-zinc-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-cyan-700 file:text-white hover:file:bg-cyan-800 cursor-pointer"
+                        />
+                        {conceptUploadLoading && (
+                          <p className="text-[10px] text-cyan-600 font-bold animate-pulse">Uploading and publishing simulation file...</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-zinc-500 uppercase ml-1">Simulation Title *</label>
+                        <input 
+                          required
+                          type="text"
+                          placeholder="e.g. CLIA Process 3D Simulation"
+                          value={conceptForm.title}
+                          onChange={e => setConceptForm({ ...conceptForm, title: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm font-bold"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs font-black text-zinc-500 uppercase ml-1">Category</label>
+                          <input 
+                            type="text"
+                            placeholder="e.g. Chemiluminescence"
+                            value={conceptForm.category}
+                            onChange={e => setConceptForm({ ...conceptForm, category: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-black text-zinc-500 uppercase ml-1">Status</label>
+                          <select
+                            value={conceptForm.status}
+                            onChange={e => setConceptForm({ ...conceptForm, status: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm"
+                          >
+                            <option value="available">Available (Active)</option>
+                            <option value="coming_soon">Coming Soon</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs font-black text-zinc-500 uppercase ml-1">Badge Tag</label>
+                          <input 
+                            type="text"
+                            placeholder="e.g. Active Simulation"
+                            value={conceptForm.badge}
+                            onChange={e => setConceptForm({ ...conceptForm, badge: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-black text-zinc-500 uppercase ml-1">Target Model / HTML URL *</label>
+                          <input 
+                            required
+                            type="text"
+                            placeholder="e.g. clia-simulation.html"
+                            value={conceptForm.model_url}
+                            onChange={e => setConceptForm({ ...conceptForm, model_url: e.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-xs font-black text-zinc-500 uppercase ml-1">Description</label>
+                        <textarea
+                          rows={3}
+                          placeholder="Detailed description of the biochemical pathway or simulation mechanics..."
+                          value={conceptForm.description}
+                          onChange={e => setConceptForm({ ...conceptForm, description: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-xs shadow-sm"
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        {conceptForm.id && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConceptForm({
+                                id: null,
+                                title: '',
+                                category: 'Chemiluminescence Immunoassay',
+                                description: '',
+                                model_url: 'clia-simulation.html',
+                                badge: 'Active Simulation',
+                                status: 'available'
+                              });
+                            }}
+                            className="flex-1 py-3.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          className="flex-[2] py-3.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-sm"
+                        >
+                          {conceptForm.id ? 'Save Changes' : 'Add 3D Simulation'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Right: Models List / Table */}
+                  <div className="lg:col-span-2 space-y-4 text-left">
+                    <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-zinc-400">
+                        Configured 3D Simulation Modules ({concept3dItems.length})
+                      </h4>
+                      <span className="text-[10px] text-zinc-500 font-bold bg-zinc-100 px-2 py-0.5 rounded-lg border border-zinc-200">
+                        Active in SQLite Engine
+                      </span>
+                    </div>
+
+                    {concept3dItems.length === 0 ? (
+                      <div className="text-center py-12 bg-zinc-50 rounded-2xl border border-dashed border-zinc-200">
+                        <Box size={36} className="mx-auto text-zinc-300 mb-2" />
+                        <p className="text-xs font-bold text-zinc-400">No 3D simulation items created yet.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {concept3dItems.map(item => (
+                          <div key={item.id} className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 hover:border-cyan-400 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-1 text-left flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-[9px] uppercase px-2 py-0.5 rounded bg-cyan-100 text-cyan-800">
+                                  {item.category || 'Biomedical'}
+                                </span>
+                                <span className={cn(
+                                  "font-mono font-bold text-[9px] uppercase px-2 py-0.5 rounded",
+                                  item.status === 'available' ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                                )}>
+                                  {item.badge || item.status}
+                                </span>
+                              </div>
+                              <h5 className="font-black text-sm text-zinc-900">{item.title}</h5>
+                              <p className="text-xs text-zinc-500 line-clamp-2">{item.description}</p>
+                              <div className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
+                                <span>File/URL:</span>
+                                <code className="bg-white px-1.5 py-0.5 rounded border border-zinc-200 text-zinc-700">{item.model_url}</code>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                              {item.model_url && item.model_url !== '#' && (
+                                <a
+                                  href={item.model_url.startsWith('http') || item.model_url.startsWith('/') ? item.model_url : '/' + item.model_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-xl font-black font-mono text-[10px] uppercase transition flex items-center gap-1 border border-cyan-200"
+                                >
+                                  <Play size={12} /> Launch
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConceptForm({
+                                    id: item.id,
+                                    title: item.title,
+                                    category: item.category,
+                                    description: item.description,
+                                    model_url: item.model_url,
+                                    badge: item.badge,
+                                    status: item.status
+                                  });
+                                }}
+                                className="px-3 py-1.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 rounded-xl font-black font-mono text-[10px] uppercase transition"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteConcept3d(item.id)}
+                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-black font-mono text-[10px] uppercase transition border border-red-100"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -7296,7 +7641,7 @@ export function AdminPanel() {
         {activeTab === 'database' && dbSubTab === 'mlt_desk' && (
           <div className="space-y-8 text-left font-sans animate-fade-in">
             {/* Bento Quick Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               <div 
                 onClick={() => { setMltSubTab('slides'); setShowMltForm(false); }}
                 className={cn(
@@ -7372,42 +7717,77 @@ export function AdminPanel() {
                   <div className="text-[10px] font-bold opacity-60">BMLT Desk Practice Quiz</div>
                 </div>
               </div>
+
+              <div 
+                onClick={() => { setMltSubTab('concept_3d'); setShowMltForm(false); }}
+                className={cn(
+                  "p-5 rounded-[2rem] border transition-all cursor-pointer shadow-sm flex flex-col justify-between",
+                  mltSubTab === 'concept_3d' 
+                    ? "bg-teal-950 border-teal-800 text-teal-100" 
+                    : "bg-white border-zinc-200 text-zinc-900 hover:border-teal-500"
+                )}
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-[10px] font-mono tracking-widest uppercase">3D Simulations</span>
+                  <Box size={18} className={mltSubTab === 'concept_3d' ? "text-teal-400" : "text-zinc-500"} />
+                </div>
+                <div>
+                  <div className="text-3xl font-black">{concept3dItems.length}</div>
+                  <div className="text-[10px] font-bold opacity-60">Interactive Models</div>
+                </div>
+              </div>
             </div>
 
             {/* Sub-section Controls */}
-            <div className="flex justify-between items-center bg-zinc-100 p-4 rounded-3xl border border-zinc-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-100 p-4 rounded-3xl border border-zinc-200">
               <div>
                 <h3 className="text-lg font-black tracking-tight uppercase font-mono">
                   {mltSubTab === 'slides' && '🔬 Microscope Simulator Slides'}
                   {mltSubTab === 'lab_params' && '🧪 Clinical Reference Parameters'}
                   {mltSubTab === 'cases' && '📋 Laboratory Case Studies'}
                   {mltSubTab === 'mcqs' && '❓ Practice Multiple Choice Questions'}
+                  {mltSubTab === 'concept_3d' && '🧊 Advanced Concept 3D Simulations & Models'}
                 </h3>
                 <p className="text-xs text-zinc-500 font-bold">
                   {mltSubTab === 'slides' && 'Configure custom slide imagery, target cells, sweetspot facts, and hotspots.'}
                   {mltSubTab === 'lab_params' && 'Manage Reference parameters including male/female thresholds and medical units.'}
                   {mltSubTab === 'cases' && 'Add and modify clinical patient records in paragraph or MCQ answering layout.'}
                   {mltSubTab === 'mcqs' && 'Configure custom multiple-choice questions for general diagnostic training.'}
+                  {mltSubTab === 'concept_3d' && 'Deploy, configure, and modify interactive 3D simulations (CLIA, RIA, ELISA) and upload standalone HTML models.'}
                 </p>
               </div>
 
-              {!showMltForm && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Reset forms on create click
-                    setSlideForm({ id: null, name: '', description: '', targetCell: '', hint: '', imageUrl: '', fact: '', options: '', hotspots: '[]' });
-                    setLabForm({ id: null, name: '', unit: '', normalMinMale: '', normalMaxMale: '', normalMinFemale: '', normalMaxFemale: '', category: '', description: '' });
-                    setMltCaseForm({ id: null, type: 'mcq', title: '', scenario: '', question: '', options: '', correct: '', explanation: '', normalParams: '' });
-                    setMltMcqForm({ id: null, question: '', options: '', correct: '', imageUrl: '', explanation: '' });
-                    setShowMltForm(true);
-                  }}
-                  className="flex items-center gap-1 bg-black hover:bg-zinc-800 text-white font-extrabold text-[11px] uppercase tracking-wider px-5 py-3 rounded-xl transition shadow active:scale-95 cursor-pointer"
-                >
-                  <Plus size={14} />
-                  <span>Create Item</span>
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {mltSubTab === 'concept_3d' && (
+                  <a
+                    href="/advanced-concept-3d.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 bg-white hover:bg-zinc-50 text-zinc-800 border border-zinc-200 font-bold text-[11px] uppercase tracking-wider px-4 py-3 rounded-xl transition shadow-xs"
+                  >
+                    <span>View Gallery</span>
+                    <ExternalLink size={12} />
+                  </a>
+                )}
+                {!showMltForm && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Reset forms on create click
+                      setSlideForm({ id: null, name: '', description: '', targetCell: '', hint: '', imageUrl: '', fact: '', options: '', hotspots: '[]' });
+                      setLabForm({ id: null, name: '', unit: '', normalMinMale: '', normalMaxMale: '', normalMinFemale: '', normalMaxFemale: '', category: '', description: '' });
+                      setMltCaseForm({ id: null, type: 'mcq', title: '', scenario: '', question: '', options: '', correct: '', explanation: '', normalParams: '' });
+                      setMltMcqForm({ id: null, question: '', options: '', correct: '', imageUrl: '', explanation: '' });
+                      setConceptForm({ id: null, title: '', category: 'Chemiluminescence Immunoassay', description: '', model_url: 'clia-simulation.html', badge: 'Active Simulation', status: 'available' });
+                      setShowMltForm(true);
+                    }}
+                    className="flex items-center gap-1 bg-black hover:bg-zinc-800 text-white font-extrabold text-[11px] uppercase tracking-wider px-5 py-3 rounded-xl transition shadow active:scale-95 cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    <span>Create Item</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Interactive Forms */}
@@ -7873,6 +8253,121 @@ export function AdminPanel() {
                     </div>
                   </form>
                 )}
+
+                {/* CONCEPT 3D SIMULATION FORM */}
+                {mltSubTab === 'concept_3d' && (
+                  <form onSubmit={handleSaveConcept3d} className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs text-left">
+                    <div className="md:col-span-2 p-4 bg-cyan-50 rounded-2xl border border-cyan-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="block font-black text-cyan-950 uppercase font-mono text-[11px] flex items-center gap-1.5">
+                          <Upload size={14} className="text-cyan-700" /> Upload Standalone 3D Simulation (.html)
+                        </span>
+                        <p className="text-[10px] text-cyan-800 font-medium">
+                          Select a local .html simulation (e.g. <code>clia-simulation.html</code>). It will be saved into your public folder and populate the fields below automatically.
+                        </p>
+                      </div>
+                      <div className="shrink-0">
+                        <label className="inline-flex items-center gap-1.5 px-4 py-2 bg-cyan-800 hover:bg-cyan-900 text-white rounded-xl font-black text-[10px] uppercase tracking-wider cursor-pointer transition shadow-xs">
+                          <Upload size={12} />
+                          <span>{conceptUploadLoading ? 'Uploading...' : 'Choose .html file'}</span>
+                          <input
+                            type="file"
+                            accept=".html,.htm"
+                            disabled={conceptUploadLoading}
+                            onChange={handleConceptFileUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block font-black text-zinc-700 mb-1.5 uppercase font-mono">Simulation Title *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. CLIA Process 3D Simulation"
+                        value={conceptForm.title}
+                        onChange={(e) => setConceptForm({ ...conceptForm, title: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-black text-zinc-700 mb-1.5 uppercase font-mono">Department / Category *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Chemiluminescence Immunoassay"
+                        value={conceptForm.category}
+                        onChange={(e) => setConceptForm({ ...conceptForm, category: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-black text-zinc-700 mb-1.5 uppercase font-mono">Availability Status *</label>
+                      <select
+                        value={conceptForm.status}
+                        onChange={(e) => setConceptForm({ ...conceptForm, status: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 font-bold"
+                      >
+                        <option value="available">Available (Active Model)</option>
+                        <option value="coming_soon">Coming Soon</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-black text-zinc-700 mb-1.5 uppercase font-mono">Target Simulation Model URL / Filename *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. clia-simulation.html"
+                        value={conceptForm.model_url}
+                        onChange={(e) => setConceptForm({ ...conceptForm, model_url: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 font-bold font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-black text-zinc-700 mb-1.5 uppercase font-mono">Badge Label</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Active Simulation"
+                        value={conceptForm.badge}
+                        onChange={(e) => setConceptForm({ ...conceptForm, badge: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 font-bold"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block font-black text-zinc-700 mb-1.5 uppercase font-mono">Detailed Educational Description</label>
+                      <textarea
+                        rows={3}
+                        placeholder="Explain the biochemical principles, photon quantification, or diagnostic steps depicted in this 3D simulation..."
+                        value={conceptForm.description}
+                        onChange={(e) => setConceptForm({ ...conceptForm, description: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 font-bold"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 flex gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowMltForm(false)}
+                        className="flex-1 py-3 bg-zinc-200 hover:bg-zinc-300 rounded-xl font-bold uppercase transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-2 py-3 bg-teal-800 hover:bg-teal-950 text-white rounded-xl font-black uppercase tracking-wider transition"
+                      >
+                        {conceptForm.id ? 'Save 3D Simulation Changes' : 'Create 3D Simulation'}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             )}
 
@@ -8151,6 +8646,90 @@ export function AdminPanel() {
                               </tr>
                             );
                           })
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {/* 3D Concept Simulations Table */}
+                  {mltSubTab === 'concept_3d' && (
+                    <table className="w-full text-xs text-left">
+                      <thead>
+                        <tr className="border-b border-zinc-200 text-zinc-400 font-mono tracking-widest uppercase text-[10px]">
+                          <th className="py-3 px-4">Simulation Title</th>
+                          <th className="py-3 px-4">Discipline / Category</th>
+                          <th className="py-3 px-4">Target Model / HTML URL</th>
+                          <th className="py-3 px-4">Status & Badge</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {concept3dItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="py-12 text-center text-zinc-550 font-bold">
+                              No 3D simulations configured in SQLite database yet. Click "Create Item" above to add one.
+                            </td>
+                          </tr>
+                        ) : (
+                          concept3dItems.map((item, idx) => (
+                            <tr key={item.id || idx} className="border-b border-zinc-100 hover:bg-zinc-50/50">
+                              <td className="py-3 px-4">
+                                <div className="font-black text-zinc-850">{item.title}</div>
+                                <div className="text-[10px] text-zinc-500 line-clamp-1 max-w-xs">{item.description}</div>
+                              </td>
+                              <td className="py-3 px-4 font-bold text-teal-800">
+                                <span className="bg-teal-50 px-2 py-0.5 rounded border border-teal-200 text-[10px] font-mono">
+                                  {item.category || 'General'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-mono text-zinc-600">
+                                <code>{item.model_url}</code>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={cn(
+                                  "font-mono font-bold text-[9px] uppercase px-2 py-0.5 rounded",
+                                  item.status === 'available' ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                                )}>
+                                  {item.badge || item.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right space-x-2">
+                                {item.model_url && item.model_url !== '#' && (
+                                  <a
+                                    href={item.model_url.startsWith('http') || item.model_url.startsWith('/') ? item.model_url : '/' + item.model_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-lg font-bold font-mono text-[9px] uppercase transition inline-flex items-center gap-1 border border-teal-200"
+                                  >
+                                    <Play size={10} /> Launch
+                                  </a>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setConceptForm({
+                                      id: item.id,
+                                      title: item.title,
+                                      category: item.category,
+                                      description: item.description,
+                                      model_url: item.model_url,
+                                      badge: item.badge,
+                                      status: item.status
+                                    });
+                                    setShowMltForm(true);
+                                  }}
+                                  className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 rounded-lg font-bold font-mono text-[9px] uppercase transition cursor-pointer"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteConcept3d(item.id)}
+                                  className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-bold font-mono text-[9px] uppercase transition cursor-pointer"
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))
                         )}
                       </tbody>
                     </table>
