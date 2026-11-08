@@ -33,7 +33,8 @@ import {
   ArrowUp,
   ArrowDown,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Box
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PdfJsViewer } from './PdfJsViewer';
@@ -3110,6 +3111,14 @@ export function ContentLibrary() {
                 {/* HORIZONTAL DEPARTMENT BOOKS CAROUSEL */}
                 <div className="pt-1.5 pb-1 select-none">
                   <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    <a
+                      href="/advanced-concept-3d.html"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10.5px] font-black transition-all shrink-0 active:scale-95 cursor-pointer border snap-start bg-gradient-to-r from-teal-950 via-slate-900 to-indigo-950 text-teal-300 border-teal-500/50 hover:border-teal-400 shadow-sm"
+                      title="Open Advanced Concept 3D Gallery"
+                    >
+                      <Box size={11.5} className="text-teal-400 animate-pulse" />
+                      <span className="leading-none">Advanced Concept 3D</span>
+                    </a>
                     {subjects.map((sub) => {
                       const isSelected = activeSubject?.id === sub.id;
                       return (
@@ -3196,6 +3205,14 @@ export function ContentLibrary() {
 
                 {/* HORIZONTAL DEPARTMENT BOOKS FOR DESKTOP */}
                 <div className="pt-2 flex flex-wrap gap-2">
+                  <a
+                    href="/advanced-concept-3d.html"
+                    className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all border shadow-sm cursor-pointer bg-gradient-to-r from-teal-950 via-slate-900 to-indigo-950 text-teal-300 border-teal-500/50 hover:border-teal-400 hover:scale-102"
+                    title="Open Advanced Concept 3D Gallery"
+                  >
+                    <Box size={13} className="text-teal-400 animate-pulse" />
+                    <span className="leading-none">Advanced Concept 3D</span>
+                  </a>
                   {subjects.map((sub) => {
                     const isSelected = activeSubject?.id === sub.id;
                     return (
@@ -3218,6 +3235,15 @@ export function ContentLibrary() {
               </div>
 
               <div className="flex items-center gap-3 shrink-0 self-start md:self-end">
+                <a
+                  href="/advanced-concept-3d.html"
+                  className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-teal-500 via-cyan-500 to-indigo-600 text-white shadow-md hover:shadow-cyan-500/25 hover:scale-102 active:scale-95 transition-all border border-teal-400/30"
+                  title="Open Advanced Concept 3D Gallery"
+                >
+                  <Box size={13} className="animate-pulse text-white" />
+                  <span>Advanced Concept 3D</span>
+                </a>
+
                 {/* Public Library Desktop Search */}
                 <div className="relative w-full min-w-[220px] max-w-[260px] shrink-0 select-none">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-teal-650">
@@ -3933,6 +3959,39 @@ export function ContentLibrary() {
                     className="flex gap-4 overflow-x-auto py-2.5 px-0.5 scrollbar-none snap-x scroll-smooth"
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                   >
+                    {/* ADVANCED CONCEPT 3D NAVIGATION CARD */}
+                    <a
+                      href="/advanced-concept-3d.html"
+                      className="relative w-[155px] h-[155px] sm:w-[185px] sm:h-[185px] rounded-2xl overflow-hidden border cursor-pointer group hover:scale-[1.015] hover:shadow-xl transition-all flex flex-col justify-between p-3.5 pl-5.5 text-left active:scale-98 select-none shrink-0 snap-start bg-gradient-to-br from-zinc-950 via-slate-900 to-[#0a1826] border-teal-500/50 shadow-md text-white"
+                      title="Open Advanced Concept 3D Gallery (CLIA, RIA & Immunoassays)"
+                    >
+                      {/* Left spine styling matching other cards */}
+                      <div className="absolute top-0 left-0 bottom-0 w-3 shadow-md z-1 bg-gradient-to-b from-teal-400 via-cyan-400 to-indigo-600" />
+                      
+                      <div className="flex items-center justify-between z-10">
+                        <span className="text-[7.5px] font-mono uppercase tracking-widest text-teal-300 font-black px-1.5 py-0.5 rounded bg-teal-950/90 border border-teal-500/40 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-ping"></span>
+                          3D GALLERY
+                        </span>
+                        <Box size={14} className="text-teal-400 animate-pulse" />
+                      </div>
+
+                      <div className="space-y-1 z-10">
+                        <p className="text-[11px] sm:text-xs font-black text-white tracking-tight leading-snug line-clamp-2 font-display">
+                          Advanced Concept 3D
+                        </p>
+                        <p className="text-[9px] text-zinc-400 line-clamp-1 font-sans">
+                          CLIA & RIA Simulations
+                        </p>
+                        <div className="flex items-center justify-between text-[8px] font-bold text-teal-300 uppercase tracking-widest font-sans pt-1 border-t border-zinc-800/80">
+                          <span className="truncate max-w-[70px] sm:max-w-[100px] text-left text-zinc-400">Interactive</span>
+                          <span className="text-teal-300 bg-teal-950/80 border border-teal-500/40 px-1.5 py-0.5 rounded font-black">
+                            Launch →
+                          </span>
+                        </div>
+                      </div>
+                    </a>
+
                     {books.map((book) => {
                       const isBookAuthor = isAdmin || (localStorage.getItem('my_author_name')?.toLowerCase().trim() === book.author_name.toLowerCase().trim());
                       return (
