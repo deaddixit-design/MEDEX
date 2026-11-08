@@ -4170,6 +4170,36 @@ User's described mood: "${mood}"
     }
   });
 
+  // Admin Direct HTML Simulation File Upload
+  app.post('/api/admin/concept-3d/upload', requireAdmin, upload.single('file'), (req: any, res: any) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const originalName = req.file.originalname;
+    if (!originalName.toLowerCase().endsWith('.html') && !originalName.toLowerCase().endsWith('.htm')) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'Only .html or .htm simulation files are supported' });
+    }
+
+    const cleanName = path.basename(originalName);
+    const pubPath = path.join(process.cwd(), 'public', cleanName);
+    const rootPath = path.join(process.cwd(), cleanName);
+
+    try {
+      fs.copyFileSync(req.file.path, pubPath);
+      fs.copyFileSync(req.file.path, rootPath);
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+
+      res.json({
+        success: true,
+        filename: cleanName,
+        url: `/${cleanName}`
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to save simulation file' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production' && !process.env.SKIP_VITE_DEV) {
     try {
