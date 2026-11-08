@@ -343,6 +343,27 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS user_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    author_name TEXT NOT NULL DEFAULT 'Admin',
+    category TEXT DEFAULT 'General',
+    url TEXT DEFAULT '/news',
+    news_id INTEGER NULL,
+    image_url TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endpoint TEXT UNIQUE NOT NULL,
+    p256dh TEXT NULL,
+    auth TEXT NULL,
+    user_agent TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS mcqs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     subject_id INTEGER NULL,
@@ -2117,6 +2138,129 @@ async function startServer() {
     }
   });
 
+  // --- SERVICE WORKER FOR PUSH NOTIFICATIONS ---
+  app.get('/sw.js', (req, res) => {
+    const swPath = path.join(process.cwd(), 'public', 'sw.js');
+    if (fs.existsSync(swPath)) {
+      res.setHeader('Content-Type', 'application/javascript');
+      res.setHeader('Service-Worker-Allowed', '/');
+      res.sendFile(swPath);
+    } else {
+      res.status(404).end();
+    }
+  });
+
+  // --- REAL-TIME PUSH NOTIFICATIONS & SSE STREAM ---
+  const sseClients = new Set<express.Response>();
+
+  function broadcastNotification(payload: any) {
+    const message = `data: ${JSON.stringify(payload)}\n\n`;
+    sseClients.forEach((client) => {
+      try {
+        client.write(message);
+      } catch (_) {
+        sseClients.delete(client);
+      }
+    });
+  }
+
+  // Periodic SSE keep-alive heartbeat every 25 seconds
+  setInterval(() => {
+    sseClients.forEach((client) => {
+      try {
+        client.write(': ping\n\n');
+      } catch (_) {
+        sseClients.delete(client);
+      }
+    });
+  }, 25000);
+
+  // SSE Stream for real-time notifications
+  app.get('/api/public/notifications/stream', (req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: Date.now() })}\n\n`);
+
+    sseClients.add(res);
+
+    req.on('close', () => {
+      sseClients.delete(res);
+    });
+  });
+
+  // Fetch recent notifications for client polling or on-mount sync
+  app.get('/api/public/notifications/latest', (req, res) => {
+    try {
+      const since = req.query.since ? parseInt(req.query.since as string) : 0;
+      let notifs;
+      if (since > 0) {
+        notifs = db.prepare('SELECT * FROM user_notifications WHERE id > ? ORDER BY created_at DESC LIMIT 25').all(since);
+      } else {
+        notifs = db.prepare('SELECT * FROM user_notifications ORDER BY created_at DESC LIMIT 25').all();
+      }
+      res.json(notifs);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to fetch notifications' });
+    }
+  });
+
+  // Save browser Web Push subscription
+  app.post('/api/public/push/subscribe', (req, res) => {
+    try {
+      const { endpoint, keys, userAgent } = req.body;
+      if (!endpoint) {
+        return res.status(400).json({ error: 'Endpoint is required' });
+      }
+      const p256dh = keys?.p256dh || null;
+      const auth = keys?.auth || null;
+      const agent = userAgent || (req.headers['user-agent'] as string) || null;
+
+      db.prepare(`
+        INSERT INTO push_subscriptions (endpoint, p256dh, auth, user_agent)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(endpoint) DO UPDATE SET
+          p256dh = excluded.p256dh,
+          auth = excluded.auth,
+          user_agent = excluded.user_agent
+      `).run(endpoint, p256dh, auth, agent);
+
+      res.json({ success: true, message: 'Push subscription stored successfully' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to store push subscription' });
+    }
+  });
+
+  // Manual notification broadcast endpoint for Admin
+  app.post('/api/admin/notifications/broadcast', requireAdmin, (req, res) => {
+    try {
+      const { title, message, url, category } = req.body;
+      if (!title || !message) {
+        return res.status(400).json({ error: 'Title and message are required' });
+      }
+      const notifStmt = db.prepare('INSERT INTO user_notifications (title, message, author_name, category, url) VALUES (?, ?, ?, ?, ?)');
+      const notifInfo = notifStmt.run(title, message, 'Admin', category || 'General', url || '/news');
+
+      const payload = {
+        type: 'notification',
+        id: Number(notifInfo.lastInsertRowid),
+        title,
+        message,
+        author_name: 'Admin',
+        category: category || 'General',
+        url: url || '/news',
+        created_at: new Date().toISOString()
+      };
+      broadcastNotification(payload);
+      res.json({ success: true, notification: payload });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to broadcast notification' });
+    }
+  });
+
   // --- NEWS AND UPDATES API ---
 
   app.get('/api/public/news', (req, res) => {
@@ -2129,14 +2273,63 @@ async function startServer() {
   });
 
   app.post('/api/admin/news', requireAdmin, (req, res) => {
-    const { title, content, author_name, category, image_url, file_path } = req.body;
+    const { title, content, author_name, category, image_url, file_path, send_push } = req.body;
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required' });
     }
     try {
       const info = db.prepare('INSERT INTO news_updates (title, content, author_name, category, image_url, file_path) VALUES (?, ?, ?, ?, ?, ?)')
         .run(title, content, author_name || 'Admin', category || 'General', image_url || null, file_path || null);
-      res.json({ id: info.lastInsertRowid, title, content, author_name: author_name || 'Admin', category: category || 'General', image_url, file_path });
+      const newsId = Number(info.lastInsertRowid);
+
+      let pushSent = false;
+      // Send push notification to users by default (unless explicitly set to false)
+      if (send_push !== false) {
+        const notifTitle = `📢 ${title}`;
+        const notifMsg = content.length > 130 ? content.slice(0, 127) + '...' : content;
+        const notifUrl = `/news?id=${newsId}`;
+
+        const notifStmt = db.prepare(`
+          INSERT INTO user_notifications (title, message, author_name, category, url, news_id, image_url)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        const notifInfo = notifStmt.run(
+          notifTitle,
+          notifMsg,
+          author_name || 'Admin',
+          category || 'General',
+          notifUrl,
+          newsId,
+          image_url || null
+        );
+
+        const pushPayload = {
+          type: 'news_created',
+          id: Number(notifInfo.lastInsertRowid),
+          news_id: newsId,
+          title: notifTitle,
+          message: notifMsg,
+          author_name: author_name || 'Admin',
+          category: category || 'General',
+          url: notifUrl,
+          image_url: image_url || null,
+          created_at: new Date().toISOString()
+        };
+
+        broadcastNotification(pushPayload);
+        pushSent = true;
+      }
+
+      res.json({
+        id: newsId,
+        title,
+        content,
+        author_name: author_name || 'Admin',
+        category: category || 'General',
+        image_url,
+        file_path,
+        push_sent: pushSent
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to create news update' });
     }
