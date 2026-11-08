@@ -536,6 +536,45 @@ try {
   console.error("Error creating academic_sessions table:", e);
 }
 
+// Initialize Concept 3D Table with Role-Based Access Control
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS concept_3d_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT NOT NULL,
+      model_url TEXT NOT NULL,
+      badge TEXT DEFAULT 'Active Simulation',
+      status TEXT DEFAULT 'available',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  const countConcept = (db.prepare('SELECT COUNT(*) as cnt FROM concept_3d_items').get() as { cnt: number }).cnt;
+  if (countConcept === 0) {
+    const insertConcept = db.prepare('INSERT INTO concept_3d_items (title, category, description, model_url, badge, status) VALUES (?, ?, ?, ?, ?, ?)');
+    insertConcept.run(
+      'CLIA Process 3D Simulation',
+      'Chemiluminescence Immunoassay',
+      'Interactive 3D simulation of Chemiluminescence Immunoassay protocol: magnetic microparticle separation, acridinium ester/luminol antigen-antibody conjugate binding, trigger excitation, and automated photon multiplier detection.',
+      'clia-simulation.html',
+      'Active Simulation',
+      'available'
+    );
+    insertConcept.run(
+      'RIA (Radioimmunoassay) 3D Model',
+      'Radioisotope Diagnostics',
+      '3D isotopic competitive binding model using I-125 radiolabels, antibody-antigen displacement curves, and scintillation gamma photon counting.',
+      '#',
+      'Coming Soon',
+      'coming_soon'
+    );
+  }
+} catch (e) {
+  console.error("Error creating concept_3d_items table:", e);
+}
+
 try {
   const countMcqs = (db.prepare('SELECT COUNT(*) as cnt FROM bmlt_mcqs').get() as { cnt: number }).cnt;
   if (countMcqs === 0) {
@@ -4055,6 +4094,79 @@ User's described mood: "${mood}"
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Failed to delete academic session' });
+    }
+  });
+
+  // ===============================================================
+  // ADVANCED CONCEPT 3D GALLERY ROUTES & ROLE-BASED ACCESS CONTROL
+  // ===============================================================
+  // 1. Direct Static Serving for 3D Gallery and Simulation Files
+  app.get('/advanced-concept-3d.html', (req, res) => {
+    const rootPath = path.join(process.cwd(), 'advanced-concept-3d.html');
+    const pubPath = path.join(process.cwd(), 'public', 'advanced-concept-3d.html');
+    if (fs.existsSync(rootPath)) {
+      res.sendFile(rootPath);
+    } else if (fs.existsSync(pubPath)) {
+      res.sendFile(pubPath);
+    } else {
+      res.status(404).send('Advanced Concept 3D Gallery file not found');
+    }
+  });
+
+  app.get('/clia-simulation.html', (req, res) => {
+    const rootPath = path.join(process.cwd(), 'clia-simulation.html');
+    const pubPath = path.join(process.cwd(), 'public', 'clia-simulation.html');
+    if (fs.existsSync(rootPath)) {
+      res.sendFile(rootPath);
+    } else if (fs.existsSync(pubPath)) {
+      res.sendFile(pubPath);
+    } else {
+      res.redirect('/advanced-concept-3d.html?status=clia-simulation-pending');
+    }
+  });
+
+  // 2. Public View-Only API: Accessible to all scholars and visitors
+  app.get('/api/concept-3d', (req, res) => {
+    try {
+      const items = db.prepare('SELECT * FROM concept_3d_items ORDER BY id ASC').all();
+      res.json(items);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to retrieve 3D concept items' });
+    }
+  });
+
+  // 3. Role-Based Access: Strictly Admin/Author file & data modifications
+  app.post('/api/admin/concept-3d', requireAdmin, (req, res) => {
+    const { title, category, description, model_url, badge, status } = req.body;
+    if (!title || !model_url) {
+      return res.status(400).json({ error: 'Title and model_url are required' });
+    }
+    try {
+      const info = db.prepare('INSERT INTO concept_3d_items (title, category, description, model_url, badge, status) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(title, category || 'General', description || '', model_url, badge || 'Active Simulation', status || 'available');
+      res.json({ success: true, id: info.lastInsertRowid });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to create 3D concept item' });
+    }
+  });
+
+  app.put('/api/admin/concept-3d/:id', requireAdmin, (req, res) => {
+    const { title, category, description, model_url, badge, status } = req.body;
+    try {
+      db.prepare('UPDATE concept_3d_items SET title = ?, category = ?, description = ?, model_url = ?, badge = ?, status = ? WHERE id = ?')
+        .run(title, category, description, model_url, badge, status, req.params.id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to update 3D concept item' });
+    }
+  });
+
+  app.delete('/api/admin/concept-3d/:id', requireAdmin, (req, res) => {
+    try {
+      db.prepare('DELETE FROM concept_3d_items WHERE id = ?').run(req.params.id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Failed to delete 3D concept item' });
     }
   });
 
