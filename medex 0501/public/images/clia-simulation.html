@@ -200,6 +200,435 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
   #viewport{height:clamp(300px,54vh,580px)}
 }
 @media (max-width:620px){ .hud-bl{display:none} .idbar{font-size:10px;padding:3px 6px} }
+
+/* ---- Fullscreen Modes (Mobile & Desktop) ---- */
+.btn-cyan{background:linear-gradient(135deg,#0284c7,#0369a1);border-color:#38bdf8;color:#fff}
+.btn-cyan:hover{background:linear-gradient(135deg,#0369a1,#075985);border-color:#7dd3fc;color:#fff}
+.btn-sm{padding:6px 10px;font-size:11.5px}
+.btn-outline{background:transparent;border-color:var(--line);color:var(--muted)}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+
+.topbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+.hud-pill-btn{
+  display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:999px;font-size:11.5px;
+  background:rgba(8,14,26,.88);border:1px solid #28446e;color:var(--text);backdrop-filter:blur(8px);
+  cursor:pointer;transition:.2s;user-select:none;font-weight:600;
+}
+.hud-pill-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(14,35,66,.92)}
+.hud-pill-btn.active{border-color:var(--accent);background:#0e3556;color:var(--accent)}
+
+/* Mode 1: 3D Simulation-only Fullscreen (Canvas fills screen) */
+.viewport-wrap.viewport-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  z-index: 999999 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  margin: 0 !important;
+  background: #060a12 !important;
+}
+.viewport-wrap.viewport-fullscreen #viewport {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+/* Forced Landscape Rotation Fallback (for mobile/Android with system orientation lock) */
+.viewport-wrap.viewport-fullscreen.viewport-force-landscape {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: 100vh !important;
+  width: 100dvh !important;
+  height: 100vw !important;
+  height: 100dvw !important;
+  max-width: none !important;
+  max-height: none !important;
+  transform: translate(-50%, -50%) rotate(90deg) !important;
+  transform-origin: center center !important;
+  overflow: hidden !important;
+}
+
+/* Floating on-canvas Mobile Simulation Player Controller */
+.fs-player-bar{
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  width: calc(100% - 24px);
+  max-width: 720px;
+  background: rgba(10,16,28,.92);
+  border: 1px solid rgba(56,189,248,.4);
+  box-shadow: 0 10px 40px rgba(0,0,0,.7), 0 0 25px rgba(56,189,248,.2);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 20px;
+  padding: 10px 14px;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  animation: slideUpFs .3s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes slideUpFs{from{transform:translate(-50%,20px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+.viewport-wrap.viewport-fullscreen .fs-player-bar{
+  display: flex !important;
+}
+.fs-bar-row{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+.fs-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #121c32;
+  border: 1px solid #233454;
+  color: #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  transition: .15s;
+  flex-shrink: 0;
+  user-select: none;
+}
+.fs-btn:hover{border-color:var(--accent);color:var(--accent)}
+.fs-btn-play{
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  padding: 0;
+  background: linear-gradient(135deg,#0284c7,#0369a1);
+  border-color: #38bdf8;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(56,189,248,.35);
+}
+.fs-btn-play:hover{transform:scale(1.06)}
+.fs-btn-icon{
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+}
+.fs-btn-close{
+  background: rgba(239,68,68,.18);
+  border-color: rgba(239,68,68,.5);
+  color: #fca5a5;
+  margin-left: auto;
+}
+.fs-btn-close:hover{background:rgba(239,68,68,.3);border-color:#ef4444;color:#fff}
+.fs-btn-chip{
+  font-size: 10.5px;
+  padding: 5px 9px;
+  border-radius: 999px;
+}
+.fs-btn-chip.active{
+  background: #0e3556;
+  border-color: #38bdf8;
+  color: #7dd3fc;
+}
+.fs-slider{
+  flex: 1;
+  min-width: 60px;
+}
+.fs-time{
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Mode 2: Fitted Entire UI Dashboard Fullscreen */
+body.ui-fitted-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #060a12 !important;
+  z-index: 99999 !important;
+}
+body.ui-fitted-fullscreen .app {
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  padding: 6px 10px !important;
+  gap: 6px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+body.ui-fitted-fullscreen .topbar {
+  padding: 4px 10px !important;
+  min-height: 36px !important;
+  flex-shrink: 0 !important;
+}
+body.ui-fitted-fullscreen .brand h1 {
+  font-size: 13px !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+body.ui-fitted-fullscreen .brand p {
+  display: none !important;
+}
+body.ui-fitted-fullscreen .topbar-actions .btn {
+  padding: 4px 9px !important;
+  font-size: 11px !important;
+}
+body.ui-fitted-fullscreen .layout {
+  display: grid !important;
+  grid-template-columns: 210px minmax(0, 1fr) 270px !important;
+  gap: 8px !important;
+  flex: 1 !important;
+  height: calc(100dvh - 50px) !important;
+  max-height: calc(100dvh - 50px) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+body.ui-fitted-fullscreen #panelLeft {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+body.ui-fitted-fullscreen #panelLeft .panel-body {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 8px !important;
+  gap: 6px !important;
+  min-height: 0 !important;
+}
+body.ui-fitted-fullscreen #stageCard {
+  padding: 8px 10px !important;
+}
+body.ui-fitted-fullscreen #stageCard .stage-title {
+  font-size: 12.5px !important;
+  margin: 3px 0 !important;
+}
+body.ui-fitted-fullscreen #stageCard .stage-desc {
+  font-size: 11px !important;
+  margin: 0 0 5px !important;
+  line-height: 1.35 !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+body.ui-fitted-fullscreen #stageCard .stage-points {
+  display: none !important;
+}
+body.ui-fitted-fullscreen .stage-row {
+  padding: 4px 7px !important;
+}
+body.ui-fitted-fullscreen .stage-row .idx {
+  width: 19px !important;
+  height: 19px !important;
+  font-size: 9.5px !important;
+}
+body.ui-fitted-fullscreen .stage-row .nm {
+  font-size: 11px !important;
+}
+body.ui-fitted-fullscreen details.notes {
+  display: none !important;
+}
+body.ui-fitted-fullscreen .center {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  gap: 5px !important;
+  overflow: hidden !important;
+}
+body.ui-fitted-fullscreen .viewport-wrap {
+  flex: 1 !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+body.ui-fitted-fullscreen #viewport {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+body.ui-fitted-fullscreen .status-row {
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr) !important;
+  gap: 4px !important;
+  flex-shrink: 0 !important;
+}
+body.ui-fitted-fullscreen .chip {
+  padding: 4px 5px !important;
+  border-radius: 8px !important;
+  column-gap: 5px !important;
+}
+body.ui-fitted-fullscreen .chip .dot {
+  width: 8px !important;
+  height: 8px !important;
+}
+body.ui-fitted-fullscreen .chip .chip-name {
+  font-size: 9.5px !important;
+}
+body.ui-fitted-fullscreen .chip .chip-state {
+  font-size: 8.5px !important;
+}
+body.ui-fitted-fullscreen .chip .chip-sub {
+  display: none !important;
+}
+body.ui-fitted-fullscreen .controls {
+  padding: 5px 8px !important;
+  gap: 4px !important;
+  flex-shrink: 0 !important;
+}
+body.ui-fitted-fullscreen .ctrl-row {
+  gap: 5px !important;
+}
+body.ui-fitted-fullscreen .ctrl-row .btn {
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+}
+body.ui-fitted-fullscreen .steps {
+  display: none !important;
+}
+body.ui-fitted-fullscreen #panelRight {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+body.ui-fitted-fullscreen #panelRight .panel-body {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding: 6px !important;
+  gap: 5px !important;
+  min-height: 0 !important;
+}
+body.ui-fitted-fullscreen .readouts {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr !important;
+  gap: 4px !important;
+  flex-shrink: 0 !important;
+}
+body.ui-fitted-fullscreen .ro {
+  padding: 3px 6px !important;
+  border-radius: 6px !important;
+}
+body.ui-fitted-fullscreen .ro span {
+  font-size: 8px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+body.ui-fitted-fullscreen .ro b {
+  font-size: 11px !important;
+}
+body.ui-fitted-fullscreen .chart-card {
+  padding: 4px 7px !important;
+  border-radius: 8px !important;
+  flex-shrink: 0 !important;
+}
+body.ui-fitted-fullscreen .chart-card h4 {
+  margin: 0 0 2px !important;
+  font-size: 9.5px !important;
+}
+body.ui-fitted-fullscreen .chart-box {
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
+}
+
+/* Widescreen landscape mobile optimizations */
+@media (max-height: 520px) {
+  body.ui-fitted-fullscreen .topbar {
+    padding: 2px 8px !important;
+    min-height: 28px !important;
+  }
+  body.ui-fitted-fullscreen .brand-logo {
+    display: none !important;
+  }
+  body.ui-fitted-fullscreen .layout {
+    grid-template-columns: 180px minmax(0, 1fr) 230px !important;
+    gap: 5px !important;
+  }
+  body.ui-fitted-fullscreen .chart-box {
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+  }
+}
+
+/* Mode Notification Toast */
+.sim-toast {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000000;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(56, 189, 248, 0.6);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.7), 0 0 20px rgba(56, 189, 248, 0.25);
+  color: #f1f5f9;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  pointer-events: none;
+  animation: fadeInDown .3s ease;
+}
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Fallback for iOS Safari */
+body.ui-fullscreen-fallback{
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  overflow: auto !important;
+  z-index: 99999 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+@media (max-width: 620px) {
+  .topbar-actions{width:100%;justify-content:space-between}
+  .topbar-actions .btn{flex:1;text-align:center;justify-content:center;padding:5px 7px;font-size:11px}
+  .hide-mobile{display:none}
+  .fs-player-bar{padding:8px 10px;bottom:8px}
+  .fs-time{display:none}
+}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -223,7 +652,25 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
         <p>Automated analyzer · serum sample → probes → cuvette · paramagnetic beads · enzyme conjugate · luminol · photometric light path</p>
       </div>
     </div>
-    <span class="badge">Educational model · generic “CLIA-800” analyzer · not to scale · time compressed</span>
+    <div class="topbar-actions">
+      <a href="/advanced-concept-3d.html" class="btn btn-outline" title="Return to 3D Concept Gallery">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        <span>Gallery</span>
+      </a>
+      <button class="btn btn-cyan" id="btnToggleHorizontalSim" title="Play 3D Simulation in Horizontal / Landscape Fullscreen (Mobile & Android)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M7 12h10"/></svg>
+        <span class="btn-text">📱 Horizontal 3D</span>
+      </button>
+      <button class="btn" id="btnToggleFittedUI" title="Fit Entire UI (3D Model + Kinetics + Controls) in One Unified Fullscreen View">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        <span class="btn-text">📊 Fit Entire UI</span>
+      </button>
+      <button class="btn hide-mobile" id="btnToggleFullSim" title="Play 3D Simulation in Fullscreen Mode">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        <span>3D Fullscreen</span>
+      </button>
+      <span class="badge hide-mobile">CLIA-800 Analyzer</span>
+    </div>
   </header>
 
   <main class="layout">
@@ -254,11 +701,27 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 
     <!-- CENTER : 3D canvas + status + controls -->
     <section class="center">
-      <div class="viewport-wrap">
+      <div class="viewport-wrap" id="viewportWrap">
         <div id="viewport"><canvas id="glcanvas"></canvas></div>
         <div class="labels-layer" id="labels"></div>
         <div class="hud hud-tl"><span class="hud-pill" id="hudStage">STEP 1/9</span></div>
-        <div class="hud hud-tr"><span class="hud-pill" id="hudScale">Analyzer exterior</span></div>
+        <div class="hud hud-tr">
+          <div style="display:inline-flex;align-items:center;gap:6px;pointer-events:auto;flex-wrap:wrap;justify-content:flex-end;">
+            <button class="hud-pill-btn" id="btnHudHorizontalSim" title="Play Horizontal Fullscreen 3D on Mobile/Android">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M7 12h10"/></svg>
+              <span>📱 Horizontal 3D</span>
+            </button>
+            <button class="hud-pill-btn" id="btnHudFittedUI" title="Fit Entire UI with Kinetics in Fullscreen">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+              <span>📊 Fit UI + Kinetics</span>
+            </button>
+            <button class="hud-pill-btn hide-mobile" id="btnHudFullSim" title="Expand 3D Simulation to Fullscreen">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+              <span>3D Full</span>
+            </button>
+            <span class="hud-pill hide-mobile" id="hudScale">Analyzer exterior</span>
+          </div>
+        </div>
         <div class="hud hud-bl">
           <div class="legend" id="legend">
             <div><i style="color:#8a5a3c;background:#8a5a3c"></i>Paramagnetic microparticle</div>
@@ -275,6 +738,39 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>
             Start simulation
           </button>
+        </div>
+
+        <!-- Floating Mobile Simulation Player Bar (Active in 3D Fullscreen Mode) -->
+        <div class="fs-player-bar" id="fsPlayerBar">
+          <div class="fs-bar-row">
+            <button class="fs-btn fs-btn-icon" id="fsBtnPrev" title="Previous Stage">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+            </button>
+            <button class="fs-btn fs-btn-play" id="fsBtnPlay" title="Play / Pause Simulation">
+              <svg class="fs-play-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>
+              <svg class="fs-pause-icon" style="display:none;" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </button>
+            <button class="fs-btn fs-btn-icon" id="fsBtnNext" title="Next Stage">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+            </button>
+            <input type="range" id="fsSeek" min="0" max="1000" value="0" step="1" class="fs-slider" aria-label="Seek simulation timeline">
+            <span class="fs-time" id="fsTime">00:00 / 02:00</span>
+            <button class="fs-btn fs-btn-chip" id="fsBtnRotate" title="Toggle Horizontal / Landscape Mode">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <span>🔄 Rotate</span>
+            </button>
+            <button class="fs-btn fs-btn-chip" id="fsBtnSwitchToUI" title="Switch to Full Fitted Dashboard (Kinetics & Charts)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+              <span>📊 Full UI</span>
+            </button>
+            <button class="fs-btn fs-btn-chip hide-mobile" id="fsBtnFreeCam" title="Toggle Free Orbit Camera">
+              <span>Free Cam</span>
+            </button>
+            <button class="fs-btn fs-btn-close" id="fsBtnExit" title="Exit Fullscreen">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <span>Exit</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -295,6 +791,18 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
           <button class="btn" id="btnPlay"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>Play</button>
           <button class="btn" id="btnPause"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Pause</button>
           <button class="btn" id="btnReset"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/></svg>Reset</button>
+          <button class="btn btn-sm btn-cyan" id="btnCtrlHorizontalSim" title="Horizontal 3D Simulation Fullscreen (Mobile/Android)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M7 12h10"/></svg>
+            <span>📱 Horizontal 3D</span>
+          </button>
+          <button class="btn btn-sm" id="btnCtrlFittedUI" title="Fit Entire UI With Kinetics in Fullscreen">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+            <span>📊 Fit UI + Kinetics</span>
+          </button>
+          <button class="btn btn-sm hide-mobile" id="btnCtrlFullSim" title="Play 3D Simulation Fullscreen">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>3D Full</span>
+          </button>
           <span class="spacer"></span>
           <label class="mini"><input type="checkbox" id="showLabels" checked> Identity bars</label>
           <label class="mini">Speed
@@ -1269,10 +1777,18 @@ function updateCharts(t){
 
 /* ---- UI refresh (throttled from the render loop) ---- */
 const btnPlay = $('#btnPlay'), btnPause = $('#btnPause'), seek = $('#seek'), startOverlay = $('#startOverlay'), legend = $('#legend');
+const fsSeek = $('#fsSeek'), fsTime = $('#fsTime'), fsBtnPlay = $('#fsBtnPlay');
+const fsPlayIcon = fsBtnPlay ? fsBtnPlay.querySelector('.fs-play-icon') : null;
+const fsPauseIcon = fsBtnPlay ? fsBtnPlay.querySelector('.fs-pause-icon') : null;
+
 let seeking = false, lastScreenSec = -1;
 function syncButtons(){
   btnPlay.classList.toggle('on', state.playing); btnPause.classList.toggle('on', !state.playing && state.t > 0 && state.t < T_TOTAL);
   startOverlay.classList.toggle('hidden', state.playing || state.t > 0);
+  if (fsPlayIcon && fsPauseIcon) {
+    fsPlayIcon.style.display = state.playing ? 'none' : 'block';
+    fsPauseIcon.style.display = state.playing ? 'block' : 'none';
+  }
 }
 function updateUI(t){
   const si = stageIndexAt(t);
@@ -1291,7 +1807,11 @@ function updateUI(t){
   $('#hudScale').textContent = t < SHELL_FADE[1] ? 'Analyzer exterior' : dist > 3 ? 'Instrument scale' : molMix < 0.5 ? 'Cuvette scale (mm)' : 'Molecular scale (nm · exaggerated)';
   legend.style.opacity = clamp01((molMix - 0.3) / 0.4);
   $('#timeLabel').textContent = fmtTime(t) + ' / ' + fmtTime(T_TOTAL);
-  if (!seeking) seek.value = Math.round(t / T_TOTAL * 1000);
+  if (!seeking) {
+    seek.value = Math.round(t / T_TOTAL * 1000);
+    if (fsSeek) fsSeek.value = Math.round(t / T_TOTAL * 1000);
+  }
+  if (fsTime) fsTime.textContent = fmtTime(t) + ' / ' + fmtTime(T_TOTAL);
   $('#roVol').textContent = Math.round(volumeAt(t)) + ' µL';
   $('#roTemp').textContent = (37 + noise(Math.floor(t * 2), 9) * 0.2).toFixed(1) + ' °C';
   const bound = t < 66 ? capFrac(t) : (capFrac(t) * 0.35 + conjFrac(t) * 0.65);
@@ -1333,6 +1853,399 @@ document.querySelectorAll('.panel-toggle').forEach(btn => {
     if (window.innerWidth > 1020) btn.querySelector('svg').style.transform = p.classList.contains('collapsed') ? 'rotate(180deg)' : '';
   });
 });
+
+/* ======================= FULLSCREEN & RESPONSIVE DASHBOARD CONTROLS ======================= */
+const viewportWrap = $('#viewportWrap');
+
+// Topbar actions
+const btnToggleHorizontalSim = $('#btnToggleHorizontalSim');
+const btnToggleFittedUI = $('#btnToggleFittedUI');
+const btnToggleFullSim = $('#btnToggleFullSim');
+
+// HUD overlay buttons (on 3D canvas)
+const btnHudHorizontalSim = $('#btnHudHorizontalSim');
+const btnHudFittedUI = $('#btnHudFittedUI');
+const btnHudFullSim = $('#btnHudFullSim');
+
+// Controls bar buttons
+const btnCtrlHorizontalSim = $('#btnCtrlHorizontalSim');
+const btnCtrlFittedUI = $('#btnCtrlFittedUI');
+const btnCtrlFullSim = $('#btnCtrlFullSim');
+
+// Floating simulation player bar
+const fsBtnPrev = $('#fsBtnPrev');
+const fsBtnNext = $('#fsBtnNext');
+const fsBtnRotate = $('#fsBtnRotate');
+const fsBtnSwitchToUI = $('#fsBtnSwitchToUI');
+const fsBtnFreeCam = $('#fsBtnFreeCam');
+const fsBtnExit = $('#fsBtnExit');
+
+let isSimFullscreen = false;
+let isHorizontalSim = false;
+let isFittedUI = false;
+
+function isDocFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+}
+
+// Notification Toast helper
+function showSimToast(msg, duration = 2800) {
+  let toast = document.getElementById('simModeToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'simModeToast';
+    toast.className = 'sim-toast';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = msg;
+  toast.style.display = 'flex';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.style.display = 'none';
+  }, duration);
+}
+
+// Orientation Lock helpers (Mobile / Android)
+async function lockLandscape() {
+  if (screen.orientation && screen.orientation.lock) {
+    try {
+      await screen.orientation.lock('landscape');
+      return true;
+    } catch (e) {
+      console.warn('Orientation lock landscape rejected or restricted:', e);
+      return false;
+    }
+  }
+  return false;
+}
+
+function unlockOrientation() {
+  if (screen.orientation && screen.orientation.unlock) {
+    try { screen.orientation.unlock(); } catch (_) {}
+  }
+}
+
+// -------------------------------------------------------------
+// Mode 1: 3D Simulation-Only Fullscreen (Standard & Horizontal)
+// -------------------------------------------------------------
+async function enterHorizontalSim() {
+  if (isFittedUI) exitFittedUI(false);
+
+  isSimFullscreen = true;
+  isHorizontalSim = true;
+
+  if (viewportWrap) {
+    viewportWrap.classList.add('viewport-fullscreen');
+    viewportWrap.classList.add('viewport-horizontal');
+  }
+
+  // Request native fullscreen on the simulation wrapper
+  const req = viewportWrap && (viewportWrap.requestFullscreen || viewportWrap.webkitRequestFullscreen || viewportWrap.mozRequestFullScreen || viewportWrap.msRequestFullscreen);
+  if (req) {
+    try { await req.call(viewportWrap); } catch (_) {}
+  }
+
+  // Lock landscape for Android / Mobile
+  const locked = await lockLandscape();
+  if (!locked && window.innerHeight > window.innerWidth) {
+    // Mobile device in portrait with rotation locked: use CSS rotation fallback
+    viewportWrap.classList.add('viewport-force-landscape');
+    showSimToast('📱 Horizontal Mode Active · Tap 🔄 Rotate if needed', 3200);
+  } else {
+    showSimToast('📱 Horizontal 3D Simulation Fullscreen', 2400);
+  }
+
+  updateFullscreenBtnStates();
+  setTimeout(resize, 60);
+  setTimeout(resize, 250);
+}
+
+function enterSimFullscreen() {
+  if (isFittedUI) exitFittedUI(false);
+
+  isSimFullscreen = true;
+  isHorizontalSim = false;
+
+  if (viewportWrap) {
+    viewportWrap.classList.add('viewport-fullscreen');
+    viewportWrap.classList.remove('viewport-force-landscape');
+    viewportWrap.classList.remove('viewport-horizontal');
+  }
+
+  const req = viewportWrap && (viewportWrap.requestFullscreen || viewportWrap.webkitRequestFullscreen || viewportWrap.mozRequestFullScreen || viewportWrap.msRequestFullscreen);
+  if (req) {
+    try { req.call(viewportWrap).catch(() => {}); } catch (_) {}
+  }
+
+  showSimToast('🎬 3D Simulation Fullscreen', 2000);
+  updateFullscreenBtnStates();
+  setTimeout(resize, 60);
+  setTimeout(resize, 250);
+}
+
+function exitSimFullscreen() {
+  isSimFullscreen = false;
+  isHorizontalSim = false;
+
+  if (viewportWrap) {
+    viewportWrap.classList.remove('viewport-fullscreen');
+    viewportWrap.classList.remove('viewport-horizontal');
+    viewportWrap.classList.remove('viewport-force-landscape');
+  }
+  unlockOrientation();
+
+  if (isDocFullscreen()) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+    if (exit) {
+      try { exit.call(document).catch(() => {}); } catch (_) {}
+    }
+  }
+
+  updateFullscreenBtnStates();
+  setTimeout(resize, 60);
+  setTimeout(resize, 250);
+}
+
+function toggleHorizontalSim() {
+  if (isSimFullscreen && isHorizontalSim) exitSimFullscreen();
+  else enterHorizontalSim();
+}
+
+function toggleSimFullscreen() {
+  if (isSimFullscreen && !isHorizontalSim) exitSimFullscreen();
+  else enterSimFullscreen();
+}
+
+function toggleForcedRotate() {
+  if (!isSimFullscreen) return;
+  const isForced = viewportWrap.classList.toggle('viewport-force-landscape');
+  showSimToast(isForced ? '🔄 Forced Horizontal (Landscape)' : '🔄 Standard Orientation', 2000);
+  setTimeout(resize, 60);
+  setTimeout(resize, 220);
+}
+
+// -------------------------------------------------------------
+// Mode 2: Fitted Entire UI Dashboard Fullscreen (3D + Kinetics)
+// -------------------------------------------------------------
+async function enterFittedUI() {
+  if (isSimFullscreen) {
+    isSimFullscreen = false;
+    isHorizontalSim = false;
+    if (viewportWrap) {
+      viewportWrap.classList.remove('viewport-fullscreen');
+      viewportWrap.classList.remove('viewport-horizontal');
+      viewportWrap.classList.remove('viewport-force-landscape');
+    }
+  }
+
+  isFittedUI = true;
+  document.body.classList.add('ui-fitted-fullscreen');
+
+  const docEl = document.documentElement;
+  const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+  if (req) {
+    try {
+      await req.call(docEl).catch(() => {
+        document.body.classList.add('ui-fullscreen-fallback');
+      });
+    } catch (_) {
+      document.body.classList.add('ui-fullscreen-fallback');
+    }
+  } else {
+    document.body.classList.add('ui-fullscreen-fallback');
+  }
+
+  lockLandscape().then(locked => {
+    if (!locked && window.innerHeight > window.innerWidth) {
+      showSimToast('📊 Fitted UI · Rotate device to landscape for widescreen view', 3400);
+    } else {
+      showSimToast('📊 Full UI Dashboard (3D + Live Kinetics)', 2400);
+    }
+  });
+
+  updateFullscreenBtnStates();
+  setTimeout(() => {
+    resize();
+    allCharts.forEach(ch => { try { ch.resize(); ch.update('none'); } catch(_) {} });
+  }, 80);
+  setTimeout(() => {
+    resize();
+    allCharts.forEach(ch => { try { ch.resize(); ch.update('none'); } catch(_) {} });
+  }, 280);
+}
+
+function exitFittedUI(callNativeExit = true) {
+  isFittedUI = false;
+  document.body.classList.remove('ui-fitted-fullscreen');
+  document.body.classList.remove('ui-fullscreen-fallback');
+  unlockOrientation();
+
+  if (callNativeExit && isDocFullscreen()) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+    if (exit) {
+      try { exit.call(document).catch(() => {}); } catch (_) {}
+    }
+  }
+
+  updateFullscreenBtnStates();
+  setTimeout(() => {
+    resize();
+    allCharts.forEach(ch => { try { ch.resize(); ch.update('none'); } catch(_) {} });
+  }, 80);
+  setTimeout(() => {
+    resize();
+    allCharts.forEach(ch => { try { ch.resize(); ch.update('none'); } catch(_) {} });
+  }, 280);
+}
+
+function toggleFittedUI() {
+  if (isFittedUI) exitFittedUI();
+  else enterFittedUI();
+}
+
+// -------------------------------------------------------------
+// Button States Synchronization
+// -------------------------------------------------------------
+function updateFullscreenBtnStates() {
+  // Horizontal 3D Simulation Buttons
+  [btnToggleHorizontalSim, btnHudHorizontalSim, btnCtrlHorizontalSim].forEach(btn => {
+    if (!btn) return;
+    const active = isSimFullscreen && isHorizontalSim;
+    btn.classList.toggle('active', active);
+    btn.classList.toggle('on', active);
+    const span = btn.querySelector('.btn-text') || btn.querySelector('span');
+    if (span) span.textContent = active ? 'Exit 3D Full' : (btn.classList.contains('btn-sm') ? '📱 Horizontal' : '📱 Horizontal 3D');
+  });
+
+  // Fitted UI Buttons
+  [btnToggleFittedUI, btnHudFittedUI, btnCtrlFittedUI].forEach(btn => {
+    if (!btn) return;
+    btn.classList.toggle('active', isFittedUI);
+    btn.classList.toggle('on', isFittedUI);
+    const span = btn.querySelector('.btn-text') || btn.querySelector('span');
+    if (span) span.textContent = isFittedUI ? 'Exit Full UI' : (btn.classList.contains('btn-sm') ? '📊 Fit UI' : '📊 Fit Entire UI');
+  });
+
+  // Standard 3D Fullscreen Buttons
+  [btnToggleFullSim, btnHudFullSim, btnCtrlFullSim].forEach(btn => {
+    if (!btn) return;
+    const active = isSimFullscreen && !isHorizontalSim;
+    btn.classList.toggle('active', active);
+    btn.classList.toggle('on', active);
+    const span = btn.querySelector('span');
+    if (span && span.textContent.includes('3D')) {
+      span.textContent = active ? 'Exit 3D' : (btn.classList.contains('btn-sm') ? '3D Full' : '3D Fullscreen');
+    }
+  });
+
+  if (fsBtnFreeCam) {
+    fsBtnFreeCam.classList.toggle('active', state.free);
+  }
+}
+
+// Event Listeners
+if (btnToggleHorizontalSim) btnToggleHorizontalSim.addEventListener('click', toggleHorizontalSim);
+if (btnHudHorizontalSim) btnHudHorizontalSim.addEventListener('click', toggleHorizontalSim);
+if (btnCtrlHorizontalSim) btnCtrlHorizontalSim.addEventListener('click', toggleHorizontalSim);
+
+if (btnToggleFittedUI) btnToggleFittedUI.addEventListener('click', toggleFittedUI);
+if (btnHudFittedUI) btnHudFittedUI.addEventListener('click', toggleFittedUI);
+if (btnCtrlFittedUI) btnCtrlFittedUI.addEventListener('click', toggleFittedUI);
+
+if (btnToggleFullSim) btnToggleFullSim.addEventListener('click', toggleSimFullscreen);
+if (btnHudFullSim) btnHudFullSim.addEventListener('click', toggleSimFullscreen);
+if (btnCtrlFullSim) btnCtrlFullSim.addEventListener('click', toggleSimFullscreen);
+
+if (fsBtnRotate) fsBtnRotate.addEventListener('click', toggleForcedRotate);
+if (fsBtnSwitchToUI) {
+  fsBtnSwitchToUI.addEventListener('click', () => {
+    exitSimFullscreen();
+    setTimeout(() => { enterFittedUI(); }, 120);
+  });
+}
+
+if (fsBtnExit) fsBtnExit.addEventListener('click', exitSimFullscreen);
+if (fsBtnPlay) fsBtnPlay.addEventListener('click', () => { state.playing ? pause() : play(); });
+if (fsBtnPrev) fsBtnPrev.addEventListener('click', () => {
+  const cur = stageIndexAt(state.t);
+  const prevIdx = Math.max(0, cur - 1);
+  seekTo(STAGES[prevIdx].t0);
+});
+if (fsBtnNext) fsBtnNext.addEventListener('click', () => {
+  const cur = stageIndexAt(state.t);
+  const nextIdx = Math.min(STAGES.length - 1, cur + 1);
+  seekTo(STAGES[nextIdx].t0);
+});
+if (fsBtnFreeCam) fsBtnFreeCam.addEventListener('click', () => {
+  state.free = !state.free;
+  $('#freeCam').checked = state.free;
+  controls.enabled = state.free;
+  if (state.free) { controls.target.copy(camLook); controls.update(); }
+  updateFullscreenBtnStates();
+});
+if (fsSeek) {
+  fsSeek.addEventListener('pointerdown', () => { seeking = true; });
+  fsSeek.addEventListener('pointerup', () => { seeking = false; });
+  fsSeek.addEventListener('input', () => {
+    state.t = fsSeek.value / 1000 * T_TOTAL;
+    updateUI(state.t);
+  });
+}
+
+function onNativeFsChange() {
+  if (!isDocFullscreen()) {
+    if (isSimFullscreen) {
+      isSimFullscreen = false;
+      isHorizontalSim = false;
+      if (viewportWrap) {
+        viewportWrap.classList.remove('viewport-fullscreen');
+        viewportWrap.classList.remove('viewport-horizontal');
+        viewportWrap.classList.remove('viewport-force-landscape');
+      }
+    }
+    if (isFittedUI) {
+      isFittedUI = false;
+      document.body.classList.remove('ui-fitted-fullscreen');
+      document.body.classList.remove('ui-fullscreen-fallback');
+    }
+    unlockOrientation();
+  }
+  updateFullscreenBtnStates();
+  setTimeout(() => {
+    resize();
+    allCharts.forEach(ch => { try { ch.resize(); ch.update('none'); } catch(_) {} });
+  }, 80);
+}
+document.addEventListener('fullscreenchange', onNativeFsChange);
+document.addEventListener('webkitfullscreenchange', onNativeFsChange);
+document.addEventListener('mozfullscreenchange', onNativeFsChange);
+document.addEventListener('MSFullscreenChange', onNativeFsChange);
+
+function handleOrientationUpdate() {
+  if (isSimFullscreen && isHorizontalSim) {
+    if (window.innerWidth > window.innerHeight) {
+      if (viewportWrap) viewportWrap.classList.remove('viewport-force-landscape');
+    }
+  }
+  setTimeout(() => {
+    resize();
+    if (isFittedUI) {
+      allCharts.forEach(ch => { try { ch.resize(); ch.update('none'); } catch(_) {} });
+    }
+  }, 100);
+}
+window.addEventListener('orientationchange', handleOrientationUpdate);
+
+// Auto-enter requested mode from URL params
+const urlParams = new URLSearchParams(window.location.search);
+const modeParam = urlParams.get('mode');
+if (modeParam === 'horizontal' || urlParams.get('horizontal') === '1') {
+  setTimeout(() => { enterHorizontalSim(); }, 400);
+} else if (modeParam === 'fitted_ui' || modeParam === 'fitted' || urlParams.get('fitted') === '1') {
+  setTimeout(() => { enterFittedUI(); }, 400);
+} else if (modeParam === 'fullscreen' || urlParams.get('fs') === '1' || urlParams.get('sim_fullscreen') === '1') {
+  setTimeout(() => { enterSimFullscreen(); }, 400);
+}
 
 /* ---- identity bar projection ---- */
 const lv = new THREE.Vector3();
