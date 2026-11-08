@@ -5,6 +5,7 @@ import { Sparkles, Image, List, Home, Shield, GraduationCap, Menu, X, MessageSqu
 import { motion, AnimatePresence } from 'motion/react';
 import { useProgram } from '../lib/ProgramContext';
 import { MedexLogo } from './MedexLogo';
+import { NotificationBell } from './NotificationManager';
 
 export function Navbar() {
   const location = useLocation();
@@ -71,7 +72,9 @@ export function Navbar() {
             ))}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <NotificationBell />
+
             {activeProgram && (
               <Link
                 to="/participate"
