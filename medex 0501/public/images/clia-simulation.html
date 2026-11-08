@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLIA 3D Simulation</title>
+
+<!-- =====================================================================
+     CLIA (Chemiluminescent Immunoassay) – interactive 3D simulation  v2
+     Single-file build: HTML + CSS + JS.
+     Libraries (CDN): Three.js r160 (+ addons), Chart.js 4.
+
+     Storyboard (all driven by one timeline, T_TOTAL seconds):
+       0  Analyzer exterior (DxI-800-class cabinet) → hood cutaway
+       1  Sample rack with clot-activator tubes slides in, barcode read
+       2  Sample probe aspirates SERUM → dispenses into cuvette
+       3  R1 probe: capture-bead reagent
+       4  Molecular zoom: antigen–antibody capture
+       5  R2 probe: enzyme-labelled conjugate → sandwich complex
+       6  Magnetic wash (wash probe aspirates supernatant)
+       7  Substrate probe → enzyme reaction → light emission (PMT)
+       8  Photometric read: lamp beam passes THROUGH the cuvette → photodiode
+
+     File map:
+       1. CSS   2. HTML   3. JS CONFIG   4. JS MODEL   5. JS SCENE
+       6. JS LABELS (floating identity bars)   7. JS UPDATE   8. JS UI
+     Everything in the scene is a pure function of time t, so play / pause /
+     scrub / reset / step-jump always show a consistent state.
+     ===================================================================== -->
+
+<style>
+/* ======================= 1. CSS ======================= */
+:root{
+  /* Theme colours – tweak these to restyle the whole page */
+  --bg:#070b13; --panel:#0d1424; --panel-2:#111b30; --line:#1e2b45;
+  --text:#e6edf8; --muted:#8fa3bf; --accent:#38bdf8;
+  --sample:#f5c542; --r1:#3b82f6; --r2:#f59e0b; --sub:#a78bfa;
+  --wash:#34d399; --pmt:#22d3ee; --photo:#fb7185;
+  --radius:14px; --panel-w-left:320px; --panel-w-right:350px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+body{background:radial-gradient(1200px 600px at 50% -10%,#0f1c38 0%,var(--bg) 60%)}
+button,select,input{font:inherit;color:inherit}
+.app{max-width:1760px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+
+/* ---- top bar ---- */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-logo{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+  background:linear-gradient(135deg,#0ea5e9,#6366f1);box-shadow:0 0 22px rgba(56,189,248,.35);font-weight:800}
+.brand h1{font-size:17px;margin:0;letter-spacing:.2px}
+.brand p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.badge{font-size:11px;color:var(--muted);border:1px solid var(--line);padding:5px 10px;border-radius:999px;background:var(--panel)}
+
+/* ---- layout ---- */
+.layout{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:start}
+.center{min-width:0;display:flex;flex-direction:column;gap:12px}
+
+/* ---- collapsible side panels ---- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  transition:width .3s ease;max-height:900px;display:flex;flex-direction:column}
+#panelLeft{width:var(--panel-w-left)} #panelRight{width:var(--panel-w-right)}
+.panel.collapsed{width:48px!important}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;
+  border-bottom:1px solid var(--line);background:var(--panel-2);flex:0 0 auto}
+.panel-title{font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.panel-toggle{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--panel);
+  cursor:pointer;display:grid;place-items:center;flex:0 0 auto;transition:.2s}
+.panel-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.panel-toggle svg{transition:transform .3s}
+.panel.collapsed .panel-title{display:none}
+.panel.collapsed .panel-head{justify-content:center;padding:12px 0;border-bottom:none}
+.panel.collapsed .panel-body{display:none}
+.panel-body{overflow:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+#panelLeft .panel-body{min-width:calc(var(--panel-w-left) - 2px)}
+#panelRight .panel-body{min-width:calc(var(--panel-w-right) - 2px)}
+.panel-body::-webkit-scrollbar{width:8px}
+.panel-body::-webkit-scrollbar-thumb{background:#223253;border-radius:8px}
+
+/* ---- stage card / list ---- */
+.card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px}
+.stage-badge{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase}
+.stage-title{margin:6px 0 8px;font-size:17px;line-height:1.25}
+.stage-desc{margin:0 0 10px;font-size:13px;line-height:1.55;color:#c3d0e4}
+.stage-points{margin:0 0 10px;padding-left:18px;font-size:12.5px;line-height:1.55;color:#aebbd1}
+.stage-points li{margin-bottom:4px}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:#0b1222}
+.fade-in{animation:fadeIn .45s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.stage-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.stage-row{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:.2s}
+.stage-row:hover{background:#0f182b}
+.stage-row .idx{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;
+  border:1px solid var(--line);color:var(--muted);flex:0 0 auto}
+.stage-row .nm{font-size:12.5px;flex:1;color:#b9c6db}
+.stage-row .tm{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.stage-row.active{border-color:#254a73;background:#0f2038}
+.stage-row.active .idx{background:var(--accent);color:#04121f;border-color:var(--accent)}
+.stage-row.active .nm{color:var(--text)}
+.stage-row.done .idx{background:#103a34;color:var(--wash);border-color:#1b5a50}
+details.notes{font-size:12px;color:var(--muted);line-height:1.5}
+details.notes summary{cursor:pointer;color:#a9bad3;margin-bottom:6px}
+
+/* ---- viewport + overlays ---- */
+.viewport-wrap{position:relative;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#060a12}
+#viewport{position:relative;width:100%;height:clamp(340px,64vh,780px)}
+#glcanvas{width:100%;height:100%;display:block;outline:none}
+.hud{position:absolute;pointer-events:none}
+.hud-tl{top:12px;left:12px} .hud-tr{top:12px;right:12px;text-align:right} .hud-bl{bottom:12px;left:12px}
+.hud-pill{display:inline-block;padding:6px 11px;border-radius:999px;font-size:11.5px;letter-spacing:.4px;
+  background:rgba(8,14,26,.72);border:1px solid var(--line);backdrop-filter:blur(6px)}
+.hud-pill b{color:var(--accent)}
+.legend{background:rgba(8,14,26,.78);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:11.5px;
+  backdrop-filter:blur(6px);opacity:0;transition:opacity .3s;display:grid;gap:5px}
+.legend div{display:flex;align-items:center;gap:8px;color:#c3d0e4}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 8px currentColor}
+.start-overlay{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(circle,rgba(6,10,18,.15),rgba(6,10,18,.6));transition:opacity .4s}
+.start-overlay.hidden{opacity:0;pointer-events:none}
+.start-btn{display:flex;align-items:center;gap:10px;padding:14px 24px;border-radius:999px;border:1px solid #2a5d89;
+  background:linear-gradient(135deg,#0b4a7a,#26308f);cursor:pointer;font-weight:600;font-size:15px;
+  box-shadow:0 0 40px rgba(56,189,248,.3);transition:.2s}
+.start-btn:hover{transform:scale(1.04);box-shadow:0 0 56px rgba(56,189,248,.5)}
+
+/* ---- floating identity bars (probes + stations), positioned from JS ---- */
+.labels-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.idbar{--c:#38bdf8;position:absolute;left:0;top:0;opacity:0;display:flex;align-items:center;gap:7px;
+  padding:4px 9px 4px 8px;background:rgba(8,14,26,.86);border:1px solid var(--line);border-left:3px solid var(--c);
+  border-radius:6px;font-size:11px;white-space:nowrap;transition:opacity .25s;will-change:transform;backdrop-filter:blur(4px)}
+.idbar b{font-weight:700;letter-spacing:.4px}
+.idbar span{color:var(--c);font-size:10px;font-weight:700;letter-spacing:.6px}
+.idbar span:empty{display:none}
+.idbar::after{content:'';position:absolute;left:50%;top:100%;width:1px;height:10px;background:var(--c)}
+.idbar.station{background:rgba(8,14,26,.7);font-size:10.5px;border-color:#27385c}
+.idbar.station b{font-weight:600}
+
+/* ---- status chips ---- */
+.status-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:8px}
+.chip{--c:#64748b;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;
+  padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);transition:.25s;min-width:0}
+.chip .dot{grid-row:1 / span 2;width:12px;height:12px;border-radius:50%;background:#2a3856;transition:.25s}
+.chip .chip-name{font-size:13px;font-weight:700;white-space:nowrap}
+.chip .chip-state{font-size:10.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+.chip .chip-sub{grid-column:2;font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip.active{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--panel));box-shadow:0 0 22px color-mix(in srgb,var(--c) 45%,transparent)}
+.chip.active .dot{background:var(--c);box-shadow:0 0 12px var(--c);animation:pulse .8s infinite alternate}
+.chip.active .chip-state{color:var(--c)}
+.chip.done{border-color:color-mix(in srgb,var(--c) 40%,var(--line))}
+.chip.done .dot{background:var(--c);opacity:.55}
+@keyframes pulse{from{transform:scale(.8);opacity:.7}to{transform:scale(1.25);opacity:1}}
+
+/* ---- playback controls ---- */
+.controls{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.ctrl-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel-2);cursor:pointer;font-size:13px;font-weight:600;transition:.2s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.on{background:#0e3556;border-color:#2b6aa0;color:#bfe6ff}
+.spacer{flex:1}
+.mini{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.mini select{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--text)}
+.mini input[type=checkbox]{accent-color:var(--accent)}
+.time{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--muted)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:6px;background:#1a2640;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);
+  box-shadow:0 0 12px rgba(56,189,248,.8);border:2px solid #04121f}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid #04121f}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:6px}
+.step{position:relative;overflow:hidden;text-align:left;padding:7px 9px;border-radius:9px;border:1px solid var(--line);
+  background:var(--panel-2);cursor:pointer;min-width:0;transition:.2s}
+.step:hover{border-color:#31507d}
+.step .s-n{font-size:10px;color:var(--muted);letter-spacing:1px;font-weight:700}
+.step .s-t{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.step .s-fill{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+.step.active{border-color:#2b6aa0;background:#0d2138}
+.step.done .s-fill{width:100%;background:var(--wash);box-shadow:none}
+
+/* ---- readouts + charts ---- */
+.readouts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ro{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.ro span{display:block;font-size:10.5px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase}
+.ro b{font-size:15px;font-variant-numeric:tabular-nums}
+.chart-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px 8px}
+.chart-card h4{margin:0 0 6px;font-size:12px;font-weight:600;color:#b9c6db;display:flex;justify-content:space-between;gap:8px}
+.chart-card h4 small{font-weight:400;color:var(--muted)}
+.chart-box{position:relative;height:140px}
+
+/* ---- responsive ---- */
+@media (max-width:1280px){ :root{--panel-w-left:270px;--panel-w-right:300px} }
+@media (max-width:1020px){
+  .layout{grid-template-columns:1fr} .center{order:-1}
+  #panelLeft,#panelRight{width:100%!important}
+  #panelLeft .panel-body,#panelRight .panel-body{min-width:0}
+  .panel{max-height:none}
+  .panel.collapsed .panel-head{justify-content:space-between;padding:12px 14px}
+  .panel.collapsed .panel-title{display:block}
+  .panel-toggle svg{transform:rotate(90deg)} .panel.collapsed .panel-toggle svg{transform:rotate(-90deg)}
+  #viewport{height:clamp(300px,54vh,580px)}
+}
+@media (max-width:620px){ .hud-bl{display:none} .idbar{font-size:10px;padding:3px 6px} }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+
+<body>
+<!-- ======================= 2. HTML ======================= -->
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">CL</div>
+      <div>
+        <h1>Chemiluminescent Immunoassay (CLIA) – 3D Simulation</h1>
+        <p>Automated analyzer · serum sample → probes → cuvette · paramagnetic beads · enzyme conjugate · luminol · photometric light path</p>
+      </div>
+    </div>
+    <span class="badge">Educational model · generic “CLIA-800” analyzer · not to scale · time compressed</span>
+  </header>
+
+  <main class="layout">
+
+    <!-- LEFT PANEL : stage details -->
+    <aside class="panel" id="panelLeft">
+      <div class="panel-head">
+        <span class="panel-title">Stage details</span>
+        <button class="panel-toggle" data-target="panelLeft" aria-label="Collapse stage panel" title="Collapse / expand">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+      </div>
+      <div class="panel-body">
+        <div class="card" id="stageCard"></div>
+        <div>
+          <div class="panel-title" style="margin-bottom:8px">Protocol timeline</div>
+          <ul class="stage-list" id="stageList"></ul>
+        </div>
+        <details class="notes">
+          <summary>Model notes &amp; simplifications</summary>
+          Real incubations last minutes; here they are compressed (~2 min total). Molecule sizes, counts and distances are
+          exaggerated. The cabinet is a generic floor-standing immunoassay analyzer inspired by mid-size platforms; it is not
+          a replica of any manufacturer’s product. HRP + luminol/H₂O₂ is shown; other CLIA formats use acridinium esters
+          (alkaline H₂O₂ trigger, flash kinetics) or ALP + AMPPD (glow kinetics). Photometric absorbance is illustrative.
+        </details>
+      </div>
+    </aside>
+
+    <!-- CENTER : 3D canvas + status + controls -->
+    <section class="center">
+      <div class="viewport-wrap">
+        <div id="viewport"><canvas id="glcanvas"></canvas></div>
+        <div class="labels-layer" id="labels"></div>
+        <div class="hud hud-tl"><span class="hud-pill" id="hudStage">STEP 1/9</span></div>
+        <div class="hud hud-tr"><span class="hud-pill" id="hudScale">Analyzer exterior</span></div>
+        <div class="hud hud-bl">
+          <div class="legend" id="legend">
+            <div><i style="color:#8a5a3c;background:#8a5a3c"></i>Paramagnetic microparticle</div>
+            <div><i style="color:#60a5fa;background:#60a5fa"></i>Capture antibody</div>
+            <div><i style="color:#34d399;background:#34d399"></i>Antigen (analyte)</div>
+            <div><i style="color:#c084fc;background:#c084fc"></i>Detection antibody</div>
+            <div><i style="color:#fb923c;background:#fb923c"></i>Enzyme label (HRP)</div>
+            <div><i style="color:#67e8f9;background:#67e8f9"></i>Substrate (luminol / H₂O₂)</div>
+            <div><i style="color:#9fd0ff;background:#9fd0ff"></i>Emitted photon</div>
+          </div>
+        </div>
+        <div class="start-overlay" id="startOverlay">
+          <button class="start-btn" id="startBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>
+            Start simulation
+          </button>
+        </div>
+      </div>
+
+      <!-- Status indicators: light up while each probe / module is working -->
+      <div class="status-row" id="statusRow">
+        <div class="chip" data-chip="SAMPLE" style="--c:var(--sample)"><span class="dot"></span><span class="chip-name">Sample</span><span class="chip-state">Idle</span><span class="chip-sub">Serum aspiration</span></div>
+        <div class="chip" data-chip="R1"  style="--c:var(--r1)"><span class="dot"></span><span class="chip-name">R1</span><span class="chip-state">Idle</span><span class="chip-sub">Capture beads</span></div>
+        <div class="chip" data-chip="R2"  style="--c:var(--r2)"><span class="dot"></span><span class="chip-name">R2</span><span class="chip-state">Idle</span><span class="chip-sub">Enzyme conjugate</span></div>
+        <div class="chip" data-chip="WASH" style="--c:var(--wash)"><span class="dot"></span><span class="chip-name">Wash</span><span class="chip-state">Idle</span><span class="chip-sub">Magnet + aspiration</span></div>
+        <div class="chip" data-chip="SUB" style="--c:var(--sub)"><span class="dot"></span><span class="chip-name">Substrate</span><span class="chip-state">Idle</span><span class="chip-sub">Luminol / H₂O₂</span></div>
+        <div class="chip" data-chip="PMT" style="--c:var(--pmt)"><span class="dot"></span><span class="chip-name">PMT</span><span class="chip-state">Idle</span><span class="chip-sub">Photon counting</span></div>
+        <div class="chip" data-chip="PHOTO" style="--c:var(--photo)"><span class="dot"></span><span class="chip-name">Photometer</span><span class="chip-state">Idle</span><span class="chip-sub">Lamp → cuvette → diode</span></div>
+      </div>
+
+      <!-- Playback controls + step / progress indicators -->
+      <div class="controls">
+        <div class="ctrl-row">
+          <button class="btn" id="btnPlay"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>Play</button>
+          <button class="btn" id="btnPause"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Pause</button>
+          <button class="btn" id="btnReset"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/></svg>Reset</button>
+          <span class="spacer"></span>
+          <label class="mini"><input type="checkbox" id="showLabels" checked> Identity bars</label>
+          <label class="mini">Speed
+            <select id="speedSel"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+          </label>
+          <label class="mini"><input type="checkbox" id="freeCam"> Free camera</label>
+          <span class="time" id="timeLabel">00:00 / 02:00</span>
+        </div>
+        <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Simulation progress">
+        <div class="steps" id="steps"></div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL : kinetic graphs -->
+    <aside class="panel" id="panelRight">
+      <div class="panel-head">
+        <button class="panel-toggle" data-target="panelRight" aria-label="Collapse kinetics panel" title="Collapse / expand">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <span class="panel-title">Simulated kinetics</span>
+      </div>
+      <div class="panel-body">
+        <div class="readouts">
+          <div class="ro"><span>Cuvette volume</span><b id="roVol">0 µL</b></div>
+          <div class="ro"><span>Temperature</span><b id="roTemp">37.0 °C</b></div>
+          <div class="ro"><span>Sandwich complexes</span><b id="roBind">0 %</b></div>
+          <div class="ro"><span>CL signal</span><b id="roRlu">0 RLU</b></div>
+          <div class="ro"><span>Absorbance (450 nm)</span><b id="roAbs">—</b></div>
+          <div class="ro"><span>Transmitted light</span><b id="roTrans">—</b></div>
+        </div>
+        <div class="chart-card"><h4>Cuvette volume <small>µL vs s</small></h4><div class="chart-box"><canvas id="chVol"></canvas></div></div>
+        <div class="chart-card"><h4>Immunocomplex formation <small>% vs s</small></h4><div class="chart-box"><canvas id="chBind"></canvas></div></div>
+        <div class="chart-card"><h4>Luminescence (PMT) <small>RLU ×10³ vs s</small></h4><div class="chart-box"><canvas id="chRlu"></canvas></div></div>
+        <div class="chart-card"><h4>Photometer absorbance <small>A vs s</small></h4><div class="chart-box"><canvas id="chAbs"></canvas></div></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script type="module">
+/* ======================= 3. JS / CONFIG ======================= */
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* ---- helpers ---- */
+const clamp01 = x => Math.min(1, Math.max(0, x));
+const smooth  = x => { x = clamp01(x); return x * x * (3 - 2 * x); };
+const ramp    = (t, a, b) => smooth((t - a) / (b - a));     // eased 0→1 between a and b
+const lin     = (t, a, b) => clamp01((t - a) / (b - a));    // linear 0→1 between a and b
+const lerp    = (a, b, k) => a + (b - a) * k;
+function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; } }
+const rand = mulberry32(20240607);   // fixed seed → identical scene on every load
+
+/* ---- TIMELINE (seconds) – edit to retime the whole animation ---- */
+const T_TOTAL = 120;
+
+const STAGES = [
+  { name:'Analyzer exterior', short:'Exterior', t0:0, t1:9,
+    summary:'A floor-standing immunoassay analyzer (generic “CLIA-800”, laid out like a mid-size DxI-class platform): lower cabinet, covered hood with a status light bar, touchscreen, a front sample-loading bay and an internal reagent compartment. The hood now becomes transparent to reveal the working deck.',
+    points:['Sample loading bay (front-left): racks of primary tubes go in here','Touchscreen = operator interface; light bar shows run state','Cutaway reveals rotor, probes, reagent compartment, wash station and detectors'],
+    tags:['Cabinet','Loading bay','Touchscreen','Cutaway'] },
+  { name:'Sample loading & identification', short:'Sample load', t0:9, t1:22,
+    summary:'A rack of centrifuged clot-activator tubes is placed on the loading tray and drawn into the analyzer. Each tube holds serum (top), a gel barrier (middle) and the blood clot (bottom). A barcode reader identifies the tube so the LIS can assign the test (here: TSH).',
+    points:['Serum sits above the separator gel; the clot is below it','Barcode → sample ID + ordered test from the LIS','Rack stops with the patient tube under the sample probe'],
+    tags:['Rack','Clot-activator tube','Serum','Barcode'] },
+  { name:'Sample aspiration: serum → cuvette', short:'Sample probe', t0:22, t1:36,
+    summary:'The sample probe swings to the rack, lowers into the serum (liquid-level detection keeps the tip above the gel), aspirates a small volume, then travels to the reaction cuvette and dispenses it. The probe is washed/parked afterwards to avoid carry-over.',
+    points:['Liquid-level sensing stops the tip in the serum layer','~20 µL serum aspirated (volume exaggerated visually)','Probe returns home to be rinsed before the next sample'],
+    tags:['Sample probe','Aspiration','Liquid-level detection','Carry-over'] },
+  { name:'R1 dispense: capture beads', short:'R1 probe', t0:36, t1:47,
+    summary:'The R1 probe aspirates reagent R1 from its pack in the reagent compartment and dispenses it into the cuvette. R1 contains paramagnetic microparticles coated with capture antibody, which now meet the antigen in the sample.',
+    points:['R1 = capture-antibody-coated paramagnetic microparticles','Mixing starts; incubation at 37 °C','Reagent probes are rinsed between uses'],
+    tags:['R1','Microparticles','Reagent compartment','37 °C'] },
+  { name:'Immune capture: antigen–antibody binding', short:'Antigen capture', t0:47, t1:61,
+    summary:'Zooming to molecular level: antigen is captured by the specific antibodies on the microparticle surface. Binding follows mass-action kinetics, governed by antibody affinity and antigen concentration.',
+    points:['Antigen binds the capture antibody’s paratope','Amount captured rises with antigen concentration','Unbound sample proteins stay in solution'],
+    tags:['Epitope','Affinity','Mass action','Capture Ab'] },
+  { name:'R2 dispense: enzyme conjugate binds', short:'R2 probe', t0:61, t1:77,
+    summary:'The R2 probe adds a detection antibody labelled with an enzyme (HRP shown). It binds a second epitope on the captured antigen, completing the “sandwich”: capture Ab – antigen – labelled Ab.',
+    points:['R2 = enzyme-labelled detection antibody','One enzyme label per sandwich complex (simplified)','Signal later is proportional to bound label'],
+    tags:['R2','HRP conjugate','Sandwich','Detection Ab'] },
+  { name:'Magnetic wash', short:'Wash', t0:77, t1:87,
+    summary:'A magnet pulls the paramagnetic microparticles to the cuvette wall while the wash probe aspirates the liquid to waste. Unbound sample components and excess conjugate are removed, leaving only bead-bound complexes.',
+    points:['Magnet immobilises the microparticles','Wash probe removes supernatant (unbound conjugate) to waste','Lower background → better signal-to-noise'],
+    tags:['Magnet','Wash probe','Waste','Bound / free separation'] },
+  { name:'Substrate addition & light emission', short:'Light emission', t0:87, t1:107,
+    summary:'The substrate probe adds luminol with H₂O₂ and an enhancer. The enzyme label catalyses its oxidation to an excited-state product; as it relaxes it emits blue light (~425 nm). The PMT above the cuvette counts photons as RLU.',
+    points:['Enzyme turnover generates excited 3-aminophthalate*','Relaxation emits photons (chemiluminescence)','RLU is read against a calibration curve → concentration'],
+    tags:['Substrate probe','Luminol','Photons','RLU','PMT'] },
+  { name:'Photometric read: light path through the cuvette', short:'Photometer', t0:107, t1:120,
+    summary:'A lamp beam, filtered at the test wavelength, passes straight through the cuvette to a photodiode. The transmitted fraction gives absorbance A = −log₁₀(I/I₀), used for optical checks (mixing, turbidity, interference) and in photometric assays. In CLIA the analyte signal itself is the emitted light seen by the PMT with the lamp off.',
+    points:['Lamp → filter (450 nm) → cuvette → photodiode','Beam dims inside the reaction mixture (Beer–Lambert)','Reference reading I₀ = beam with no absorbing sample'],
+    tags:['Lamp','Filter','Photodiode','Absorbance','Beer–Lambert'] }
+];
+
+/* Dispensing events: probe aspirates ~9 s before t0, then dispenses between t0 and t1 */
+const EVENTS = [
+  { key:'SAMPLE', t0:29, t1:31.5, color:0xf2c14e, dv:20,  n:6  },
+  { key:'R1',     t0:40, t1:44,   color:0x3b82f6, dv:90,  n:14 },
+  { key:'R2',     t0:64, t1:68,   color:0xf59e0b, dv:50,  n:14 },
+  { key:'SUB',    t0:89, t1:93,   color:0xc4b5fd, dv:120, n:14 }
+];
+const EV = Object.fromEntries(EVENTS.map(e => [e.key, e]));
+
+/* Wash timings */
+const W = { magIn0:78, magIn1:80, magOut0:84.5, magOut1:86, pull0:80, pull1:83.5, rel0:85, rel1:87,
+            drain0:80.5, drain1:84.5, free0:81, free1:84 };
+const FLASH_ONSET = EV.SUB.t1 + 1.5;   // first photons
+const BEAM_ON     = 107;                // photometer lamp switches on
+const SHELL_FADE  = [6.5, 9];           // hood cutaway window
+const MAX_VOL_UL  = 270;                // volume ↔ liquid height scale
+
+/* Geometry constants (world units) */
+const CZ = 3;                           // active cuvette sits at x=0, z=3
+const HERO_Y = 0.74, LIQ_BASE = 0.5, LIQ_MAXH = 1.3, R_BEAD = 0.05, AB_S = 0.05;
+const UP_Y = 2.05, DISP_Y = 1.9;        // probe tip heights: travel / dispense
+const CUV = { x:0, z:CZ };
+const RACK_POS = { x:-3.0, z:4.9 };     // where the patient tube is aspirated
+const BOT   = { R1:{x:2.9,z:4.7}, R2:{x:3.9,z:4.7}, SUB:{x:4.9,z:4.7} };
+const WASTE = { x:5.5, z:3.6 };
+
+/* Camera keyframes: [time, position, look-at]. Eased between keys. */
+const V3 = (x,y,z) => new THREE.Vector3(x,y,z);
+const KF = [
+  { t:0,   p:V3(11,4.2,19),       l:V3(0,1.2,1)       },  // exterior wide
+  { t:4.5, p:V3(2.5,3.0,17),      l:V3(0,1.5,3)       },  // front of the machine
+  { t:9,   p:V3(3.2,5.2,12.5),    l:V3(0,1.0,2.5)     },  // hood becomes transparent
+  { t:14,  p:V3(-1.2,2.8,10.0),   l:V3(-3.0,0.9,5.6)  },  // rack loading
+  { t:22,  p:V3(-1.4,2.6,9.0),    l:V3(-3.0,1.2,4.6)  },  // barcode read
+  { t:28,  p:V3(-1.4,3.3,8.4),    l:V3(-1.4,1.3,3.9)  },  // sample aspiration
+  { t:33,  p:V3(-0.9,2.9,7.6),    l:V3(-0.6,1.3,3.6)  },  // sample dispense
+  { t:36,  p:V3(1.2,2.7,8.4),     l:V3(1.3,1.3,3.8)   },  // R1 probe
+  { t:46,  p:V3(1.0,2.2,6.0),     l:V3(0.3,1.3,3.2)   },  // R1 landing
+  { t:52,  p:V3(0.16,0.78,3.38),  l:V3(0,0.74,3)      },  // molecular
+  { t:60,  p:V3(-0.14,0.76,3.34), l:V3(0,0.74,3)      },
+  { t:63,  p:V3(1.7,1.7,6.2),     l:V3(1.2,1.4,3.8)   },  // pull back for R2
+  { t:69,  p:V3(1.7,1.8,6.0),     l:V3(1.0,1.4,3.6)   },
+  { t:72,  p:V3(0.14,0.78,3.38),  l:V3(0,0.74,3)      },  // conjugate binding
+  { t:77,  p:V3(-0.10,0.76,3.34), l:V3(0,0.74,3)      },
+  { t:80,  p:V3(1.6,1.5,5.0),     l:V3(0,1.0,3)       },  // wash
+  { t:87,  p:V3(1.8,1.8,5.8),     l:V3(0.5,1.2,3.2)   },
+  { t:93,  p:V3(1.8,1.8,5.6),     l:V3(0.8,1.3,3.5)   },  // substrate probe
+  { t:98,  p:V3(0.15,0.78,3.37),  l:V3(0,0.74,3)      },  // light emission (molecular)
+  { t:103, p:V3(-0.12,0.77,3.35), l:V3(0,0.74,3)      },
+  { t:107, p:V3(0.9,1.5,5.4),     l:V3(0,1.0,3)       },  // pull back
+  { t:112, p:V3(0.2,1.35,5.2),    l:V3(0,1.0,3)       },  // photometer beam view
+  { t:120, p:V3(0.5,1.5,6.0),     l:V3(0,1.0,3)       }
+];
+
+/* Hero-bead binding schedule (shared by scene AND graphs) */
+const N_AG = 14, N_CJ = 12, BIND_DUR = 1.4;
+const AG_T0 = Array.from({length:N_AG}, (_, a) => 52.0 + a * 0.36);
+const CJ_T0 = Array.from({length:N_CJ}, (_, j) => 71.8 + j * 0.34);
+
+/* ======================= 4. JS / MODEL ======================= */
+function volumeAt(t){
+  let v = 0;
+  EVENTS.forEach(e => { v += e.dv * lin(t, e.t0 + 0.55, e.t1); });
+  v -= 90 * ramp(t, W.drain0, W.drain1);                 // wash aspiration
+  return v;
+}
+const capFrac  = t => AG_T0.reduce((s, a) => s + ramp(t, a, a + BIND_DUR), 0) / N_AG;
+const conjFrac = t => CJ_T0.reduce((s, a) => s + ramp(t, a, a + BIND_DUR), 0) / N_CJ;
+function rawFlash(tau){ return tau <= 0 ? 0 : (1 - Math.exp(-tau / 0.45)) * Math.exp(-tau / 11); }
+const FLASH_NORM = (() => { let m = 0; for (let x = 0; x < 40; x += 0.01) m = Math.max(m, rawFlash(x)); return m; })();
+const intensityAt = t => rawFlash(t - FLASH_ONSET) / FLASH_NORM;      // 0..1 chemiluminescence
+const PEAK_RLU_K = 1200;                                              // peak signal ×10³ RLU
+function noise(t, seed){ const n = Math.sin(t * 127.1 + seed * 311.7) * 43758.5453; return n - Math.floor(n) - 0.5; }
+const absorbanceAt = t => t < BEAM_ON ? null : 0.42 * ramp(t, BEAM_ON, BEAM_ON + 2) + noise(t, 7) * 0.012 * ramp(t, BEAM_ON, BEAM_ON + 2);
+const transmittanceOf = A => Math.pow(10, -A);
+
+/* ======================= 5. JS / SCENE ======================= */
+const viewport = document.getElementById('viewport');
+const canvas   = document.getElementById('glcanvas');
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' }); }
+catch (e) { viewport.innerHTML = '<p style="padding:24px;color:#f87171">WebGL is not available in this browser.</p>'; throw e; }
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setClearColor(0x060a12);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x060a12, 0.014);
+const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.02, 220);
+camera.position.copy(KF[0].p);
+
+/* ---- lights ---- */
+scene.add(new THREE.HemisphereLight(0x9bbcff, 0x0a0f1a, 0.8));
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.5); keyLight.position.set(6, 12, 10); scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x4f8cff, 0.8); rimLight.position.set(-6, 4, -6); scene.add(rimLight);
+const fillPoint = new THREE.PointLight(0xffffff, 0.25, 3, 2); fillPoint.position.set(0.4, 1.0, CZ + 0.6); scene.add(fillPoint);
+const glowLight = new THREE.PointLight(0x4aa8ff, 0, 6, 2); glowLight.position.set(0, 1.2, CZ); scene.add(glowLight);
+
+/* ---- shared textures / helpers ---- */
+function makeGlowTexture(){
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'), grd = g.createRadialGradient(64,64,0,64,64,64);
+  grd.addColorStop(0,'rgba(255,255,255,1)'); grd.addColorStop(0.3,'rgba(255,255,255,.55)'); grd.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0,0,128,128);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+}
+const glowTex = makeGlowTexture();
+function roundRectPath(g, x, y, w, h, r){
+  g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath();
+}
+const box = (w, h, d, mat, x, y, z, parent = scene) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m; };
+
+/* ---------------------------------------------------------------
+   MATERIALS
+   --------------------------------------------------------------- */
+const matDeck  = new THREE.MeshStandardMaterial({ color:0x121b2e, roughness:0.55, metalness:0.5 });
+const matDark  = new THREE.MeshStandardMaterial({ color:0x0c1322, roughness:0.5, metalness:0.6 });
+const matMetal = new THREE.MeshStandardMaterial({ color:0x4b5b78, roughness:0.35, metalness:0.85 });
+const matBright= new THREE.MeshStandardMaterial({ color:0xb8c4d8, roughness:0.25, metalness:0.9 });
+const matRing  = new THREE.MeshStandardMaterial({ color:0x1b2740, roughness:0.4, metalness:0.7 });
+const matPlinth= new THREE.MeshStandardMaterial({ color:0x2b3652, roughness:0.6, metalness:0.35 });
+const matGlass = new THREE.MeshStandardMaterial({ color:0xbfe3ff, roughness:0.05, metalness:0, transparent:true, opacity:0.2, depthWrite:false, side:THREE.DoubleSide });
+const matStrip = new THREE.MeshStandardMaterial({ color:0x0a2a3a, emissive:0x22d3ee, emissiveIntensity:1.6 });
+
+/* ---------------------------------------------------------------
+   ENVIRONMENT: floor, lower cabinet (plinth), deck, back wall
+   --------------------------------------------------------------- */
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(160,160), new THREE.MeshStandardMaterial({ color:0x070c16, roughness:0.9 }));
+floor.rotation.x = -Math.PI/2; floor.position.y = -1.61; scene.add(floor);
+const grid = new THREE.GridHelper(80, 80, 0x1a2a47, 0x0f1a2f); grid.position.y = -1.6; scene.add(grid);
+
+box(13, 1.6, 11, matPlinth, 0, -0.8, 0.5);                                    // lower cabinet
+[-2.2, 2.2].forEach(x => box(0.04, 1.4, 0.03, matDark, x, -0.8, 6.02));       // door seams
+[[-5.8,-4.7],[5.8,-4.7],[-5.8,5.5],[5.8,5.5]].forEach(([x,z]) => {            // feet
+  const f = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.3,0.12,16), matDark); f.position.set(x,-1.64,z); scene.add(f); });
+box(13, 0.3, 11, matDeck, 0, 0.15, 0.5);                                      // working deck (top y = 0.3)
+box(13, 4.6, 0.5, matDark, 0, 2.6, -5.2);                                     // back wall (top y = 4.9)
+[1.2, 2.4, 3.6].forEach(y => box(10, 0.05, 0.03, matStrip, 0, y, -4.93));
+
+/* ---------------------------------------------------------------
+   HOOD (outer structure). Fades out between SHELL_FADE[0..1]
+   --------------------------------------------------------------- */
+const hood = new THREE.Group(); scene.add(hood);
+const shellMat = new THREE.MeshStandardMaterial({ color:0xdfe5ee, roughness:0.45, metalness:0.15 });
+const trimMat  = new THREE.MeshStandardMaterial({ color:0x1d3557, roughness:0.4, metalness:0.3 });
+const smokeMat = new THREE.MeshStandardMaterial({ color:0x0e1a2c, roughness:0.15, metalness:0.2 });
+const ventMat  = new THREE.MeshStandardMaterial({ color:0x9aa7bb, roughness:0.5, metalness:0.4 });
+const statusMat= new THREE.MeshStandardMaterial({ color:0x062a1a, emissive:0x22c55e, emissiveIntensity:1.5 });
+const hoodPanels = [];
+const hb = (w,h,d,x,y,z,mat = shellMat) => { const m = box(w,h,d,mat,x,y,z,hood); hoodPanels.push(m); return m; };
+hb(13.4, 0.16, 11.6, 0, 4.98, 0.5);                    // top cover
+hb(0.16, 4.6, 11.6, -6.7, 2.6, 0.5);                   // left side
+hb(0.16, 4.6, 11.6,  6.7, 2.6, 0.5);                   // right side
+/* front panel with a rack slot (x −4.7…−1.3, y 0.45…1.8) */
+hb(2.0, 4.6, 0.16, -5.7, 2.6, 6.12);
+hb(8.0, 4.6, 0.16,  2.7, 2.6, 6.12);
+hb(3.4, 3.1, 0.16, -3.0, 3.35, 6.12);
+hb(3.4, 0.15, 0.16, -3.0, 0.375, 6.12);
+box(13.4, 0.35, 0.05, trimMat, 0, 4.3, 6.22, hood);    // blue accent band
+box(4.6, 1.5, 0.04, smokeMat, 2.7, 2.4, 6.21, hood);   // smoked window
+box(2.4, 0.1, 0.12, statusMat, 0, 5.1, 6.0, hood);     // status light bar
+for (let i = 0; i < 6; i++) box(0.03, 0.07, 3.2, ventMat, 6.8, 1.0 + i * 0.35, 1.0, hood);   // side vents
+{ /* brand plate on the front */
+  const c = document.createElement('canvas'); c.width = 512; c.height = 80; const g = c.getContext('2d');
+  g.fillStyle = '#1d3557'; g.fillRect(0,0,512,80); g.fillStyle = '#e6edf8'; g.font = '700 34px system-ui, sans-serif'; g.textBaseline = 'middle';
+  g.fillText('CLIA-800', 20, 42); g.fillStyle = '#8fb5e8'; g.font = '500 20px system-ui, sans-serif'; g.fillText('IMMUNOASSAY ANALYZER', 190, 44);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 0.66), new THREE.MeshBasicMaterial({ map:tex })); plate.position.set(2.7, 3.55, 6.24); hood.add(plate);
+}
+/* fade list (materials used by the hood) + ghost outline that remains after the cutaway */
+const fadeMats = new Set();
+hood.traverse(o => { if (o.isMesh){ o.renderOrder = 10; fadeMats.add(o.material); } });
+fadeMats.forEach(m => { m.transparent = true; });
+const ghostMat = new THREE.LineBasicMaterial({ color:0x38bdf8, transparent:true, opacity:0, depthWrite:false });
+hoodPanels.forEach(m => { const l = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), ghostMat); l.position.copy(m.position); l.renderOrder = 11; scene.add(l); });
+
+/* ---- touchscreen (stays visible) ---- */
+const screenCanvas = document.createElement('canvas'); screenCanvas.width = 512; screenCanvas.height = 320;
+const screenTex = new THREE.CanvasTexture(screenCanvas); screenTex.colorSpace = THREE.SRGBColorSpace;
+box(0.22, 4.4, 0.22, matDark, 4.9, 0.6, 6.9);
+const screenGroup = new THREE.Group(); screenGroup.position.set(4.9, 3.0, 6.95); screenGroup.rotation.x = -0.12; scene.add(screenGroup);
+box(2.0, 1.28, 0.1, matDark, 0, 0, 0, screenGroup);
+const screenFace = new THREE.Mesh(new THREE.PlaneGeometry(1.88, 1.16), new THREE.MeshBasicMaterial({ map:screenTex })); screenFace.position.z = 0.056; screenGroup.add(screenFace);
+function drawScreen(t, stageName){
+  const g = screenCanvas.getContext('2d');
+  g.fillStyle = '#061223'; g.fillRect(0,0,512,320);
+  g.fillStyle = '#0e2a4a'; g.fillRect(0,0,512,52);
+  g.fillStyle = '#e6edf8'; g.font = '700 26px system-ui, sans-serif'; g.textBaseline = 'middle'; g.fillText('CLIA-800', 18, 27);
+  g.fillStyle = t > 0 && t < T_TOTAL ? '#22c55e' : '#64748b'; g.beginPath(); g.arc(480, 26, 9, 0, 6.3); g.fill();
+  g.fillStyle = '#8fa3bf'; g.font = '500 20px system-ui, sans-serif';
+  g.fillText('Test: TSH (serum)', 18, 84); g.fillText('Sample ID: 24-08174', 18, 112); g.fillText('Rack 01 · Position 3', 18, 140);
+  g.fillStyle = '#e6edf8'; g.font = '600 22px system-ui, sans-serif'; g.fillText(stageName.length > 34 ? stageName.slice(0, 33) + '…' : stageName, 18, 188);
+  g.fillStyle = '#16294a'; g.fillRect(18, 214, 476, 18); g.fillStyle = '#38bdf8'; g.fillRect(18, 214, 476 * clamp01(t / T_TOTAL), 18);
+  g.fillStyle = '#8fa3bf'; g.font = '500 18px system-ui, sans-serif';
+  g.fillText('Elapsed ' + fmtTime(t) + ' / ' + fmtTime(T_TOTAL), 18, 262);
+  g.fillText('37.0 °C · Reagents OK · Waste OK', 18, 292);
+  screenTex.needsUpdate = true;
+}
+
+/* ---------------------------------------------------------------
+   REACTION ROTOR (12 cuvettes). Cuvette #0 is the active one.
+   --------------------------------------------------------------- */
+const ringGroup = new THREE.Group(); scene.add(ringGroup);
+const ringDisc = new THREE.Mesh(new THREE.CylinderGeometry(3.55, 3.55, 0.15, 72), matRing); ringDisc.position.y = 0.375; ringGroup.add(ringDisc);
+const ringHub  = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 0.3, 48), matDark); ringHub.position.y = 0.52; ringGroup.add(ringHub);
+const ringLight = new THREE.Mesh(new THREE.TorusGeometry(3.45, 0.025, 8, 120), new THREE.MeshStandardMaterial({ color:0x062a3a, emissive:0x22d3ee, emissiveIntensity:1.4 }));
+ringLight.rotation.x = Math.PI/2; ringLight.position.y = 0.46; ringGroup.add(ringLight);
+
+const cuvetteGlassGeo = new THREE.CylinderGeometry(0.32, 0.28, 1.5, 40, 1, true);
+const cuvetteBaseGeo  = new THREE.CircleGeometry(0.28, 40);
+const cuvetteRimGeo   = new THREE.TorusGeometry(0.32, 0.012, 8, 40);
+const matRim = new THREE.MeshStandardMaterial({ color:0x9fb6d6, roughness:0.3, metalness:0.6 });
+function makeCuvette(){
+  const g = new THREE.Group();
+  const tube = new THREE.Mesh(cuvetteGlassGeo, matGlass); tube.position.y = 0.45 + 0.75; g.add(tube);
+  const base = new THREE.Mesh(cuvetteBaseGeo, matGlass); base.rotation.x = -Math.PI/2; base.position.y = 0.46; g.add(base);
+  const rim = new THREE.Mesh(cuvetteRimGeo, matRim); rim.rotation.x = Math.PI/2; rim.position.y = 0.45 + 1.5; g.add(rim);
+  return g;
+}
+const N_CUV = 12, RING_R = 3.0, RING_START = 2.4;
+const staticLiquidGeo = new THREE.CylinderGeometry(0.265, 0.245, 1, 32);
+for (let i = 0; i < N_CUV; i++){
+  const a = i * Math.PI * 2 / N_CUV;
+  const cuv = makeCuvette(); cuv.position.set(Math.sin(a) * RING_R, 0, Math.cos(a) * RING_R); ringGroup.add(cuv);
+  if (i > 0 && rand() > 0.35){                       // other assays running in neighbouring cuvettes
+    const h = 0.25 + rand() * 0.6, col = [0x3b82f6, 0xf59e0b, 0x34d399, 0xa78bfa][Math.floor(rand() * 4)];
+    const m = new THREE.Mesh(staticLiquidGeo, new THREE.MeshStandardMaterial({ color:col, transparent:true, opacity:0.4, roughness:0.2, depthWrite:false }));
+    m.scale.y = h; m.position.y = LIQ_BASE + h / 2; cuv.add(m);
+  }
+}
+/* active cuvette liquid (child of the rotor → ends at world (0,·,3)) */
+const liquidMat = new THREE.MeshStandardMaterial({ color:0xf2c14e, transparent:true, opacity:0.5, roughness:0.15, depthWrite:false,
+  emissive:new THREE.Color(0.15, 0.5, 1.0), emissiveIntensity:0.04 });
+const liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.265, 0.245, 1, 40), liquidMat);
+liquid.position.set(0, LIQ_BASE, RING_R); liquid.visible = false; ringGroup.add(liquid);
+
+/* ---------------------------------------------------------------
+   REAGENT COMPARTMENT (right-front) with R1 / R2 / Substrate packs + WASTE
+   --------------------------------------------------------------- */
+box(3.8, 0.15, 1.9, matMetal, 3.9, 0.375, 4.75);                       // tray (top y = 0.45)
+box(3.8, 0.7, 0.08, matMetal, 3.9, 0.8, 3.86);                         // back wall of compartment
+box(0.08, 0.7, 1.9, matMetal, 2.0, 0.8, 4.75); box(0.08, 0.7, 1.9, matMetal, 5.8, 0.8, 4.75);
+const bottles = [];
+[{ key:'R1', color:0x3b82f6 }, { key:'R2', color:0xf59e0b }, { key:'SUB', color:0xa78bfa }].forEach(d => {
+  const p = BOT[d.key], g = new THREE.Group(); g.position.set(p.x, 0.45, p.z); scene.add(g);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.8, 28),
+    new THREE.MeshStandardMaterial({ color:d.color, transparent:true, opacity:0.75, roughness:0.2, emissive:d.color, emissiveIntensity:0.08 }));
+  body.position.y = 0.4; g.add(body);
+  const capM = new THREE.MeshStandardMaterial({ color:0x222c44, emissive:d.color, emissiveIntensity:0.25, roughness:0.4 });
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.18, 20), capM); cap.position.y = 0.89; g.add(cap);
+  bottles.push({ key:d.key, capMat:capM, bodyMat:body.material });
+});
+{ const funnel = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.12, 0.3, 24, 1, true), new THREE.MeshStandardMaterial({ color:0x273248, roughness:0.4, metalness:0.6, side:THREE.DoubleSide }));
+  funnel.position.set(WASTE.x, 0.6, WASTE.z); scene.add(funnel);
+  box(0.6, 0.3, 0.6, matDark, WASTE.x, 0.45, WASTE.z); }
+
+/* ---------------------------------------------------------------
+   SAMPLE LANE, RACK, CLOT-ACTIVATOR TUBES, BARCODE READER
+   --------------------------------------------------------------- */
+box(3.6, 0.15, 4.8, matMetal, -3.0, 0.375, 6.2);                       // lane / loading tray (z 3.8 … 8.6)
+box(0.08, 0.2, 4.8, matDark, -4.85, 0.5, 6.2); box(0.08, 0.2, 4.8, matDark, -1.15, 0.5, 6.2);
+const rack = new THREE.Group(); scene.add(rack);
+box(3.0, 0.15, 0.7, matDark, 0, 0.075, 0, rack);
+box(3.0, 0.7, 0.08, matDark, 0, 0.35, -0.3, rack);
+box(3.0, 0.35, 0.08, matDark, 0, 0.175, 0.3, rack);
+box(3.0, 0.05, 0.1, new THREE.MeshStandardMaterial({ color:0xf5c542, emissive:0xf5c542, emissiveIntensity:0.3 }), 0, 0.37, 0.3, rack);
+
+function makeBarcodeTexture(seed){
+  const c = document.createElement('canvas'); c.width = 128; c.height = 256; const g = c.getContext('2d');
+  g.fillStyle = '#f4f6fa'; g.fillRect(0,0,128,256);
+  const r = mulberry32(seed); let x = 12;
+  while (x < 116){ const w = 2 + Math.floor(r() * 5); g.fillStyle = '#10151f'; g.fillRect(x, 40, w, 150); x += w + 2 + Math.floor(r() * 4); }
+  g.fillStyle = '#10151f'; g.font = '700 22px monospace'; g.textAlign = 'center'; g.fillText(String(24000 + seed % 9000), 64, 224);
+  g.fillStyle = '#c2410c'; g.fillRect(0, 0, 128, 22);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+}
+const tubeGlassGeo = new THREE.CylinderGeometry(0.2, 0.2, 1.0, 24, 1, true);
+const tubeBottomGeo = new THREE.SphereGeometry(0.2, 20, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+const clotMat  = new THREE.MeshStandardMaterial({ color:0x7f1d1d, roughness:0.5 });
+const gelMat   = new THREE.MeshStandardMaterial({ color:0xb7b2a0, roughness:0.4, transparent:true, opacity:0.95 });
+const serumMat = new THREE.MeshStandardMaterial({ color:0xf2c14e, roughness:0.15, transparent:true, opacity:0.75, emissive:0x6b4a00, emissiveIntensity:0.25 });
+const TUBE_SERUM_TOP = 0.93, TUBE_SERUM_BOT = 0.48;   // rack-local y (tube bottom = 0.15)
+const tubes = [];
+[-1.1, -0.55, 0, 0.55, 1.1].forEach((x, i) => {
+  const g = new THREE.Group(); g.position.x = x; rack.add(g);
+  const glass = new THREE.Mesh(tubeGlassGeo, matGlass); glass.position.y = 0.65; g.add(glass);
+  const bot = new THREE.Mesh(tubeBottomGeo, matGlass); bot.rotation.x = Math.PI; bot.position.y = 0.15; bot.scale.y = -1; g.add(bot);
+  const clot = new THREE.Mesh(new THREE.CylinderGeometry(0.185, 0.17, 0.23, 20), clotMat); clot.position.y = 0.265; g.add(clot);
+  const gel  = new THREE.Mesh(new THREE.CylinderGeometry(0.185, 0.185, 0.1, 20), gelMat); gel.position.y = 0.43; g.add(gel);
+  const level = i === 2 ? TUBE_SERUM_TOP : 0.80 + rand() * 0.12;
+  const serum = new THREE.Mesh(new THREE.CylinderGeometry(0.185, 0.185, 1, 20), serumMat); g.add(serum);
+  const setLevel = L => { const h = Math.max(0.001, L - TUBE_SERUM_BOT); serum.scale.y = h; serum.position.y = TUBE_SERUM_BOT + h / 2; };
+  setLevel(level);
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.4), new THREE.MeshBasicMaterial({ map:makeBarcodeTexture(8100 + i * 137 + (i === 2 ? 74 : 0)) }));
+  label.position.set(0, 0.6, 0.203); g.add(label);
+  tubes.push({ g, setLevel });
+});
+/* barcode reader on an overhead bracket (clear of the tubes) */
+const SCAN_POS = new THREE.Vector3(RACK_POS.x, 1.95, 5.7);
+box(0.12, 1.9, 0.12, matMetal, -4.95, 1.25, 5.7);
+box(2.0, 0.1, 0.1, matMetal, -3.95, 2.15, 5.7);
+const scannerMat = new THREE.MeshStandardMaterial({ color:0x222c44, emissive:0xff2a2a, emissiveIntensity:0.1 });
+box(0.5, 0.3, 0.35, scannerMat, SCAN_POS.x, 2.0, SCAN_POS.z);
+const fanGeo = new THREE.BufferGeometry(); const fanPos = new Float32Array(9);
+fanGeo.setAttribute('position', new THREE.BufferAttribute(fanPos, 3));
+const fanMat = new THREE.MeshBasicMaterial({ color:0xff2a2a, transparent:true, opacity:0, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false });
+const fan = new THREE.Mesh(fanGeo, fanMat); fan.frustumCulled = false; scene.add(fan);
+const scanLineMat = new THREE.MeshBasicMaterial({ color:0xff5050, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
+const scanLine = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.012, 0.012), scanLineMat); scene.add(scanLine);
+
+/* ---------------------------------------------------------------
+   PROBES: mast + arm + carriage + needle (+ liquid slug). Each probe
+   has a waypoint path [t, x, z, tipY, activity].
+   --------------------------------------------------------------- */
+const P = (t, x, z, y, act) => ({ t, x, z, y, act });
+function reagentPath(ev, home, src, aspY, srcName, aspText){
+  const a = ev.t0 - 9;
+  return [
+    P(a,        home.x, home.z, UP_Y, 'MOVING TO ' + srcName),
+    P(a + 2,    src.x,  src.z,  UP_Y, 'LOWERING'),
+    P(a + 3.2,  src.x,  src.z,  aspY, aspText),
+    P(a + 5.7,  src.x,  src.z,  aspY, 'RAISING'),
+    P(a + 6.7,  src.x,  src.z,  UP_Y, 'MOVING TO CUVETTE'),
+    P(a + 8.2,  CUV.x,  CUV.z,  UP_Y, 'LOWERING'),
+    P(ev.t0 - 0.3, CUV.x, CUV.z, DISP_Y, 'DISPENSING'),
+    P(ev.t1,    CUV.x,  CUV.z,  DISP_Y, 'RAISING'),
+    P(ev.t1 + 0.8, CUV.x, CUV.z, UP_Y, 'RETURNING HOME'),
+    P(ev.t1 + 2.8, home.x, home.z, UP_Y, 'STANDBY')
+  ];
+}
+const WASH_Y = 0.8;
+const PROBE_DEFS = [
+  { key:'SAMPLE', label:'SAMPLE PROBE',    color:0xf5c542, css:'#f5c542', pivot:{x:-6.0,z:3.8}, armY:2.20, home:{x:-5.1,z:3.0},
+    ev:EV.SAMPLE, path:reagentPath(EV.SAMPLE, {x:-5.1,z:3.0}, RACK_POS, 1.2, 'RACK', 'ASPIRATING SERUM') },
+  { key:'R1',     label:'R1 PROBE',        color:0x3b82f6, css:'#60a5fa', pivot:{x:6.0,z:0.4},  armY:2.32, home:{x:4.8,z:1.0},
+    ev:EV.R1,  path:reagentPath(EV.R1,  {x:4.8,z:1.0}, BOT.R1, 1.0, 'R1 PACK', 'ASPIRATING R1') },
+  { key:'R2',     label:'R2 PROBE',        color:0xf59e0b, css:'#fbbf24', pivot:{x:6.0,z:1.1},  armY:2.44, home:{x:4.8,z:1.7},
+    ev:EV.R2,  path:reagentPath(EV.R2,  {x:4.8,z:1.7}, BOT.R2, 1.0, 'R2 PACK', 'ASPIRATING R2') },
+  { key:'WASH',   label:'WASH PROBE',      color:0x34d399, css:'#34d399', pivot:{x:6.0,z:1.8},  armY:2.56, home:{x:4.8,z:2.4}, ev:null,
+    path:[ P(76,   4.8, 2.4, UP_Y, 'MOVING TO CUVETTE'),
+           P(78.4, CUV.x, CUV.z, UP_Y, 'LOWERING'),
+           P(80.0, CUV.x, CUV.z, WASH_Y, 'ASPIRATING SUPERNATANT'),
+           P(84.5, CUV.x, CUV.z, WASH_Y, 'RAISING'),
+           P(85.5, CUV.x, CUV.z, UP_Y, 'MOVING TO WASTE'),
+           P(86.9, WASTE.x, WASTE.z, UP_Y, 'LOWERING'),
+           P(87.4, WASTE.x, WASTE.z, 1.25, 'DISPENSING TO WASTE'),
+           P(88.6, WASTE.x, WASTE.z, 1.25, 'RAISING'),
+           P(89.1, WASTE.x, WASTE.z, UP_Y, 'RETURNING HOME'),
+           P(90.8, 4.8, 2.4, UP_Y, 'STANDBY') ] },
+  { key:'SUB',    label:'SUBSTRATE PROBE', color:0xa78bfa, css:'#c4b5fd', pivot:{x:6.0,z:2.5},  armY:2.68, home:{x:4.8,z:3.1},
+    ev:EV.SUB, path:reagentPath(EV.SUB, {x:4.8,z:3.1}, BOT.SUB, 1.0, 'SUBSTRATE PACK', 'ASPIRATING SUBSTRATE') }
+];
+const probes = PROBE_DEFS.map(def => {
+  const mastH = def.armY + 0.15 - 0.3;
+  const accent = new THREE.MeshStandardMaterial({ color:def.color, emissive:def.color, emissiveIntensity:0.45, roughness:0.4, metalness:0.3 });
+  box(0.3, mastH, 0.3, matMetal, def.pivot.x, 0.3 + mastH / 2, def.pivot.z);
+  box(0.36, 0.2, 0.36, accent, def.pivot.x, def.armY, def.pivot.z);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 1), matMetal); scene.add(arm);
+  const carriage = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.22), accent); scene.add(carriage);
+  const needle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 1, 10), matBright); scene.add(needle);
+  const tipMat = new THREE.MeshStandardMaterial({ color:0x888888, emissive:0xffffff, emissiveIntensity:0.1 });
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 10), tipMat); scene.add(tip);
+  const slugMat = new THREE.MeshStandardMaterial({ color:def.color, emissive:def.color, emissiveIntensity:0.6, transparent:true, opacity:0.95 });
+  const slug = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1, 10), slugMat); scene.add(slug);
+  return { def, arm, carriage, needle, tip, tipMat, slug, slugMat, cur:new THREE.Vector3(), act:'STANDBY', anchor:new THREE.Vector3(),
+           carry:0, carryColor:def.color };
+});
+const probeByKey = Object.fromEntries(probes.map(p => [p.def.key, p]));
+function samplePath(path, t, out){
+  const f = path[0], l = path[path.length - 1];
+  if (t <= f.t){ out.x = f.x; out.z = f.z; out.y = f.y; out.act = 'STANDBY'; return out; }
+  if (t >= l.t){ out.x = l.x; out.z = l.z; out.y = l.y; out.act = 'STANDBY'; return out; }
+  let i = 0; while (i < path.length - 2 && t > path[i + 1].t) i++;
+  const a = path[i], b = path[i + 1], k = smooth((t - a.t) / (b.t - a.t));
+  out.x = lerp(a.x, b.x, k); out.z = lerp(a.z, b.z, k); out.y = lerp(a.y, b.y, k); out.act = a.act; return out;
+}
+
+/* dispensed droplets */
+const dropGeo = new THREE.SphereGeometry(0.028, 12, 10);
+EVENTS.forEach(ev => {
+  ev.mat = new THREE.MeshStandardMaterial({ color:ev.color, emissive:ev.color, emissiveIntensity:0.8, roughness:0.2 });
+  ev.drops = Array.from({ length:ev.n }, () => {
+    const m = new THREE.Mesh(dropGeo, ev.mat); m.visible = false; scene.add(m);
+    return { mesh:m, jx:(rand() - 0.5) * 0.04, jz:(rand() - 0.5) * 0.04 };
+  });
+});
+
+/* ---- magnet (wash station) – comes in from the back of the rotor ---- */
+const magnet = new THREE.Group(); magnet.position.set(0, 0.92, 1.6); magnet.visible = false; scene.add(magnet);
+box(0.25, 0.8, 0.22, new THREE.MeshStandardMaterial({ color:0xef4444, roughness:0.4, metalness:0.3 }), -0.125, 0, 0, magnet);
+box(0.25, 0.8, 0.22, new THREE.MeshStandardMaterial({ color:0x3b82f6, roughness:0.4, metalness:0.3 }),  0.125, 0, 0, magnet);
+
+/* ---- PMT above the cuvette ---- */
+const pmt = new THREE.Group(); pmt.position.set(0, 3.2, CZ); scene.add(pmt);
+pmt.add(new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.7, 32), matDark));
+const pmtWinMat = new THREE.MeshStandardMaterial({ color:0x0a2535, emissive:0x22d3ee, emissiveIntensity:0.1 });
+const pmtWin = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 32), pmtWinMat); pmtWin.position.y = -0.36; pmt.add(pmtWin);
+box(0.25, 0.25, 8.2, matMetal, 0, 3.55, -1.0);
+const coneMat = new THREE.MeshBasicMaterial({ color:0x3aa0ff, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide });
+const lightCone = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.3, 0.9, 28, 1, true), coneMat); lightCone.position.set(0, 2.4, CZ); scene.add(lightCone);
+const cuvGlowMat = new THREE.SpriteMaterial({ map:glowTex, color:new THREE.Color(0.3, 0.6, 1.0), transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
+const cuvGlow = new THREE.Sprite(cuvGlowMat); cuvGlow.position.set(0, 1.0, CZ); scene.add(cuvGlow);
+
+/* ---------------------------------------------------------------
+   PHOTOMETER: lamp (x=+2.55) → filter → [beam through cuvette] → photodiode (x=−2.55)
+   The beam line (z = 3) runs just beside the neighbouring cuvettes.
+   --------------------------------------------------------------- */
+const LAMP_X = 2.55, BEAM_Y = 1.0, WIN_X = 2.25;
+box(0.3, 0.53, 0.3, matMetal, LAMP_X, 0.565, CZ); box(0.3, 0.53, 0.3, matMetal, -LAMP_X, 0.565, CZ);
+box(0.6, 0.34, 0.34, matDark, LAMP_X, BEAM_Y, CZ);
+box(0.6, 0.34, 0.34, matDark, -LAMP_X, BEAM_Y, CZ);
+const bulbMat = new THREE.MeshStandardMaterial({ color:0x332200, emissive:0xffd27a, emissiveIntensity:0.1 });
+const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 12), bulbMat); bulb.position.set(LAMP_X + 0.1, BEAM_Y, CZ); scene.add(bulb);
+const filterMat = new THREE.MeshStandardMaterial({ color:0x2a5fff, transparent:true, opacity:0.65, emissive:0x2a5fff, emissiveIntensity:0.3 });
+const filterGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.04, 28); filterGeo.rotateZ(Math.PI / 2);
+const filterDisc = new THREE.Mesh(filterGeo, filterMat); filterDisc.position.set(WIN_X - 0.01, BEAM_Y, CZ); scene.add(filterDisc);
+const diodeMat = new THREE.MeshStandardMaterial({ color:0x2a0a12, emissive:0xfb7185, emissiveIntensity:0.1 });
+const diodeGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.04, 28); diodeGeo.rotateZ(Math.PI / 2);
+const diodeWin = new THREE.Mesh(diodeGeo, diodeMat); diodeWin.position.set(-WIN_X + 0.01, BEAM_Y, CZ); scene.add(diodeWin);
+const flareMat = new THREE.SpriteMaterial({ map:glowTex, color:new THREE.Color(0.4, 0.65, 1.3), transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
+const flare = new THREE.Sprite(flareMat); flare.position.set(WIN_X - 0.05, BEAM_Y, CZ); scene.add(flare);
+/* beam segments: A (lamp → cuvette), B1/B2 (inside cuvette, attenuating), C (cuvette → diode) */
+function makeBeamSeg(x0, x1){
+  const mk = (r, base) => {
+    const geo = new THREE.CylinderGeometry(r, r, 1, 14, 1, true); geo.rotateZ(Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ color:0x7cc4ff, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
+    const m = new THREE.Mesh(geo, mat); m.scale.x = Math.abs(x1 - x0); m.position.set((x0 + x1) / 2, BEAM_Y, CZ); scene.add(m);
+    return { m, mat, base };
+  };
+  return [mk(0.05, 0.38), mk(0.016, 0.95)];
+}
+const beamSegs = [ makeBeamSeg(WIN_X, 0.3), makeBeamSeg(0.3, 0), makeBeamSeg(0, -0.3), makeBeamSeg(-0.3, -WIN_X) ];
+
+/* ---------------------------------------------------------------
+   MOLECULAR SCALE (inside molGroup, centred on the cuvette)
+   --------------------------------------------------------------- */
+const molGroup = new THREE.Group(); molGroup.position.set(0, HERO_Y, CZ); scene.add(molGroup);
+function buildAntibodyGeometry(){
+  const parts = [], ang = THREE.MathUtils.degToRad(35);
+  const stem = new THREE.CylinderGeometry(0.07, 0.07, 0.5, 10); stem.translate(0, 0.25, 0); parts.push(stem);
+  parts.push(new THREE.SphereGeometry(0.07, 10, 8));
+  const joint = new THREE.SphereGeometry(0.085, 10, 8); joint.translate(0, 0.5, 0); parts.push(joint);
+  [1, -1].forEach(s => {
+    const arm = new THREE.CylinderGeometry(0.06, 0.06, 0.5, 10); arm.translate(0, 0.25, 0); arm.rotateZ(s * ang); arm.translate(0, 0.5, 0); parts.push(arm);
+    const t = new THREE.SphereGeometry(0.078, 10, 8); t.translate(0, 0.5, 0); t.rotateZ(s * ang); t.translate(0, 0.5, 0); parts.push(t);
+  });
+  return mergeGeometries(parts);
+}
+const abGeo = buildAntibodyGeometry();
+const beadMat = new THREE.MeshStandardMaterial({ color:0x8a5a3c, roughness:0.35, metalness:0.6 });
+const capMat  = new THREE.MeshStandardMaterial({ color:0x60a5fa, roughness:0.45, metalness:0.1, emissive:0x0b2a55, emissiveIntensity:0.6 });
+const conjMat = new THREE.MeshStandardMaterial({ color:0xc084fc, roughness:0.45, metalness:0.1, emissive:0x3b1566, emissiveIntensity:0.6 });
+const agMat   = new THREE.MeshStandardMaterial({ color:0x34d399, roughness:0.4, emissive:0x0b4d38, emissiveIntensity:0.7 });
+const enzMat  = new THREE.MeshStandardMaterial({ color:0xfb923c, roughness:0.4, emissive:new THREE.Color(0.3, 0.7, 1.0), emissiveIntensity:0.0 });
+const agGeo   = new THREE.IcosahedronGeometry(0.013, 1);
+const enzGeo  = new THREE.SphereGeometry(0.011, 16, 12);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+function quatFromDir(dir, roll = 0){
+  const q = new THREE.Quaternion().setFromUnitVectors(Y_AXIS, dir);
+  return q.multiply(new THREE.Quaternion().setFromAxisAngle(Y_AXIS, roll));
+}
+function randomUnit(){ const u = rand() * 2 - 1, a = rand() * Math.PI * 2, r = Math.sqrt(1 - u * u); return new THREE.Vector3(Math.cos(a) * r, u, Math.sin(a) * r); }
+function fibDir(i, n){ const y = 1 - 2 * (i + 0.5) / n, r = Math.sqrt(1 - y * y), phi = i * Math.PI * (3 - Math.sqrt(5)); return new THREE.Vector3(Math.cos(phi) * r, y, Math.sin(phi) * r); }
+function makeDrift(amin = 0.01, amax = 0.022){
+  const r3 = f => [f(), f(), f()];
+  return { a:r3(() => amin + rand() * (amax - amin)), w:r3(() => 0.6 + rand() * 1.2), p:r3(() => rand() * 6.283) };
+}
+function drift(d, t, out){ return out.set(Math.sin(t * d.w[0] + d.p[0]) * d.a[0], Math.sin(t * d.w[1] + d.p[1]) * d.a[1], Math.sin(t * d.w[2] + d.p[2]) * d.a[2]); }
+function randCuvettePoint(minDist = 0.15, y0 = -0.2, y1 = 0.14){
+  for (;;){
+    const r = Math.sqrt(rand()) * 0.17, a = rand() * Math.PI * 2;
+    const p = new THREE.Vector3(Math.cos(a) * r, y0 + rand() * (y1 - y0), Math.sin(a) * r);
+    if (p.length() > minDist) return p;
+  }
+}
+function makeConjugate(){
+  const g = new THREE.Group();
+  const y = new THREE.Mesh(abGeo, conjMat); y.scale.setScalar(AB_S); g.add(y);
+  const e = new THREE.Mesh(enzGeo, enzMat); e.position.set(0, -0.25 * AB_S, 0); g.add(e);
+  return g;
+}
+/* hero microparticle: bead + capture antibodies + captured antigens + conjugates */
+const heroGroup = new THREE.Group(); molGroup.add(heroGroup);
+heroGroup.add(new THREE.Mesh(new THREE.SphereGeometry(R_BEAD, 40, 30), beadMat));
+const N_AB = 28, abDirs = [];
+for (let i = 0; i < N_AB; i++){
+  const dir = fibDir(i, N_AB); abDirs.push(dir);
+  const ab = new THREE.Mesh(abGeo, capMat); ab.scale.setScalar(AB_S);
+  ab.position.copy(dir).multiplyScalar(R_BEAD * 0.96); ab.quaternion.copy(quatFromDir(dir, rand() * 6.28)); heroGroup.add(ab);
+}
+const agItems = [], agIndices = [];
+for (let i = 0; i < N_AB && agIndices.length < N_AG; i += 2) agIndices.push(i);
+agIndices.forEach((abIdx, a) => {
+  const dir = abDirs[abIdx];
+  const end = dir.clone().multiplyScalar(R_BEAD + 0.0455 + 0.011);
+  const start = dir.clone().multiplyScalar(0.17 + rand() * 0.12).add(randomUnit().multiplyScalar(0.05));
+  const m = new THREE.Mesh(agGeo, agMat); heroGroup.add(m);
+  agItems.push({ mesh:m, start, end, t0:AG_T0[a], drift:makeDrift(0.006, 0.012), dir });
+});
+const cjItems = [], enzymeLocal = [];
+for (let j = 0; j < N_CJ; j++){
+  const ag = agItems[j], dir = ag.dir;
+  const endOrigin = ag.end.clone().add(dir.clone().multiplyScalar(0.0545));
+  const start = dir.clone().multiplyScalar(0.2 + rand() * 0.1).add(randomUnit().multiplyScalar(0.05));
+  const g = makeConjugate(); g.quaternion.copy(quatFromDir(dir.clone().negate(), rand() * 6.28)); heroGroup.add(g);
+  cjItems.push({ g, start, end:endOrigin, t0:CJ_T0[j], drift:makeDrift(0.006, 0.012) });
+  enzymeLocal.push(endOrigin.clone().add(dir.clone().multiplyScalar(0.25 * AB_S)));
+}
+const haloMat = new THREE.SpriteMaterial({ map:glowTex, color:new THREE.Color(0.4, 0.75, 1.4), transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false });
+const halos = enzymeLocal.map(p => { const s = new THREE.Sprite(haloMat); s.position.copy(p); s.scale.setScalar(0.04); s.visible = false; heroGroup.add(s); return s; });
+const PH_PER = 10, PH_N = N_CJ * PH_PER;
+const phPos = new Float32Array(PH_N * 3), phCol = new Float32Array(PH_N * 3);
+const phGeo = new THREE.BufferGeometry();
+phGeo.setAttribute('position', new THREE.BufferAttribute(phPos, 3)); phGeo.setAttribute('color', new THREE.BufferAttribute(phCol, 3));
+const photons = new THREE.Points(phGeo, new THREE.PointsMaterial({ size:0.02, map:glowTex, vertexColors:true, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true }));
+photons.frustumCulled = false; heroGroup.add(photons);
+const phDir = [], phPhase = [], phSpeed = [];
+for (let i = 0; i < PH_N; i++){ phDir.push(randomUnit()); phPhase.push(rand()); phSpeed.push(0.6 + rand() * 0.8); }
+
+const freeAg = Array.from({ length:22 }, () => { const m = new THREE.Mesh(agGeo, agMat); molGroup.add(m); return { mesh:m, base:randCuvettePoint(), drift:makeDrift() }; });
+const freeCj = Array.from({ length:14 }, () => {
+  const g = makeConjugate(); g.quaternion.copy(quatFromDir(randomUnit(), rand() * 6.28)); molGroup.add(g);
+  return { g, base:randCuvettePoint(), drift:makeDrift(), spin:(rand() - 0.5) * 0.6 };
+});
+const bgBeads = Array.from({ length:22 }, () => {
+  const g = new THREE.Group(), rb = 0.03 + rand() * 0.008;
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(rb, 24, 18), beadMat));
+  for (let k = 0; k < 5; k++){
+    const dir = randomUnit(), ab = new THREE.Mesh(abGeo, capMat); ab.scale.setScalar(0.028);
+    ab.position.copy(dir).multiplyScalar(rb * 0.96); ab.quaternion.copy(quatFromDir(dir, rand() * 6.28)); g.add(ab);
+  }
+  molGroup.add(g);
+  const x = (rand() - 0.5) * 0.14;      // magnet is behind the cuvette → beads gather on the −z wall
+  return { g, base:randCuvettePoint(0.14, -0.18, 0.05), drift:makeDrift(0.008, 0.016),
+           wall:new THREE.Vector3(x, -0.12 + rand() * 0.2, -(Math.sqrt(0.2 * 0.2 - x * x) - rand() * 0.02)), spin:(rand() - 0.5) };
+});
+const N_SUB = 64;
+const subMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.007, 8, 6),
+  new THREE.MeshStandardMaterial({ color:0x67e8f9, emissive:0x22d3ee, emissiveIntensity:1.0 }), N_SUB);
+subMesh.frustumCulled = false; molGroup.add(subMesh);
+const subItems = Array.from({ length:N_SUB }, (_, k) => ({ base:randCuvettePoint(0.12, -0.2, 0.14), drift:makeDrift(0.008, 0.02), target:k % N_CJ, tc:EV.SUB.t1 + 0.2 + (k / N_SUB) * 4.5 }));
+const dummy = new THREE.Object3D();
+
+/* ---- post-processing: bloom for the light emission ---- */
+let composer = null, bloom = null;
+try {
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.25, 0.6, 0.62);
+  composer.addPass(bloom); composer.addPass(new OutputPass());
+} catch (e) { console.warn('Bloom disabled:', e); composer = null; }
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.minDistance = 0.15; controls.maxDistance = 60; controls.enabled = false;
+function resize(){
+  const w = Math.max(10, viewport.clientWidth), h = Math.max(10, viewport.clientHeight);
+  renderer.setSize(w, h, false);
+  if (composer){ composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); bloom.resolution.set(w, h); }
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(viewport); resize();
+
+/* ======================= 6. JS / LABELS – floating identity bars ======================= */
+const labelsLayer = document.getElementById('labels');
+const labelList = [];
+function addLabel(o){
+  const el = document.createElement('div'); el.className = 'idbar' + (o.station ? ' station' : ''); el.style.setProperty('--c', o.css || '#38bdf8');
+  el.innerHTML = `<b>${o.text}</b><span></span>`; labelsLayer.appendChild(el);
+  labelList.push({ el, subEl:el.querySelector('span'), anchor:o.anchor, vis:o.vis, sub:o.sub || null, lastSub:null, shown:false });
+}
+const win = (a, b) => t => t >= a && t <= b;
+/* probes: bar follows the carriage, shows live activity */
+probes.forEach(p => addLabel({ text:p.def.label, css:p.def.css, vis:t => t >= 8.5, sub:() => p.act, anchor:(t, v) => v.set(p.cur.x, p.def.armY + 0.22, p.cur.z) }));
+/* stations */
+const S = (text, css, pos, vis, sub) => addLabel({ text, css, station:true, vis, sub, anchor:(t, v) => v.copy(pos) });
+S('CLIA-800 ANALYZER', '#38bdf8', V3(0, 5.5, 6.0), win(0, 8.6));
+S('TOUCHSCREEN', '#38bdf8', V3(4.9, 4.0, 6.95), win(0, 8.6));
+S('SAMPLE LOADING BAY', '#f5c542', V3(RACK_POS.x, 1.9, 8.0), win(0, 17));
+S('SAMPLE RACK', '#f5c542', V3(-3.0, 1.95, 4.9), win(17, 36), t => t < 21 ? 'BARCODE READ' : 'SERUM TUBE');
+addLabel({ text:'TUBE ID 24-08174', css:'#fcd34d', station:true, vis:win(18.5, 36), sub:t => t < 21 ? 'READING…' : 'TSH · SERUM',
+           anchor:(t, v) => v.set(RACK_POS.x, 1.68, RACK_POS.z) });
+S('BARCODE READER', '#ff6b6b', V3(-4.3, 2.35, 5.7), win(12, 22));
+S('REAGENT COMPARTMENT', '#94a3b8', V3(3.9, 2.1, 4.75), win(9, 107));
+S('R1 PACK', '#60a5fa', V3(BOT.R1.x, 1.7, BOT.R1.z), win(9, 107));
+S('R2 PACK', '#fbbf24', V3(BOT.R2.x, 1.7, BOT.R2.z), win(9, 107));
+S('SUBSTRATE', '#c4b5fd', V3(BOT.SUB.x, 1.7, BOT.SUB.z), win(9, 107));
+S('REACTION ROTOR · 37 °C', '#94a3b8', V3(-2.6, 0.75, 1.3), win(9, 78));
+S('MAGNET', '#f87171', V3(0, 1.5, 1.9), win(77, 87));
+S('WASTE', '#94a3b8', V3(WASTE.x, 0.95, WASTE.z), win(76, 92));
+S('PMT DETECTOR', '#67e8f9', V3(0, 3.75, CZ), win(88, 112), t => intensityAt(t) > 0.02 ? 'COUNTING PHOTONS' : 'STANDBY');
+S('LAMP · 450 nm FILTER', '#fda4af', V3(LAMP_X, 1.4, CZ), win(105, 120), t => t >= BEAM_ON ? 'ON' : '');
+S('PHOTODIODE', '#fda4af', V3(-LAMP_X, 1.4, CZ), win(105, 120), t => t >= BEAM_ON ? 'READING' : '');
+
+/* ======================= 7. JS / UPDATE – scene as a function of time ======================= */
+const state = { t:0, playing:false, speed:1, free:false, labels:true };
+const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), heroWorld = new THREE.Vector3(0, HERO_Y, CZ);
+const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
+const enzWorld = Array.from({ length:N_CJ }, () => new THREE.Vector3());
+const liqColor = new THREE.Color(), cSerum = new THREE.Color(0xf2c14e), cR1 = new THREE.Color(0x3b82f6), cR2 = new THREE.Color(0xd9a13a),
+      cClear = new THREE.Color(0x7dd3fc), cSub = new THREE.Color(0x8b7cf6);
+const pathOut = { x:0, y:0, z:0, act:'' };
+const greenBar = new THREE.Color(0x22c55e), blueBar = new THREE.Color(0x38bdf8);
+
+function cameraAt(t){
+  let i = 0; while (i < KF.length - 2 && t > KF[i + 1].t) i++;
+  const a = KF[i], b = KF[i + 1], k = smooth((t - a.t) / (b.t - a.t));
+  camPos.lerpVectors(a.p, b.p, k); camLook.lerpVectors(a.l, b.l, k);
+}
+
+let molMix = 0;       // 0 = instrument scale, 1 = molecular scale
+function applyScene(t){
+  const I = intensityAt(t);
+
+  /* --- hood cutaway --- */
+  const shellOp = 1 - ramp(t, SHELL_FADE[0], SHELL_FADE[1]);
+  fadeMats.forEach(m => { m.opacity = shellOp; m.depthWrite = shellOp > 0.98; });
+  hood.visible = shellOp > 0.01;
+  ghostMat.opacity = 0.2 * (1 - shellOp);
+  statusMat.emissive.copy(t > 9 && t < T_TOTAL - 0.5 ? blueBar : greenBar);
+  statusMat.emissiveIntensity = 1.2 + 0.6 * Math.sin(t * 4);
+
+  /* --- rotor positions cuvette #0 at the front --- */
+  ringGroup.rotation.y = (1 - ramp(t, 8.5, 18)) * RING_START;
+
+  /* --- camera --- */
+  if (!state.free){ cameraAt(t); camera.position.copy(camPos); camera.lookAt(camLook); } else controls.update();
+  molMix = 1 - smooth((camera.position.distanceTo(heroWorld) - 0.5) / 1.1);
+
+  /* --- liquid in the active cuvette --- */
+  const V = volumeAt(t), h = LIQ_MAXH * V / MAX_VOL_UL;
+  liquid.visible = h > 0.004; liquid.scale.y = Math.max(h, 0.001); liquid.position.y = LIQ_BASE + h / 2;
+  liqColor.copy(cSerum).lerp(cR1, ramp(t, EV.R1.t0 + 0.5, EV.R1.t1))
+          .lerp(cR2, ramp(t, EV.R2.t0 + 1, EV.R2.t1 + 1) * 0.5)
+          .lerp(cClear, ramp(t, W.free0, W.free1 + 1) * 0.8)
+          .lerp(cSub, ramp(t, EV.SUB.t0 + 1, EV.SUB.t1 + 1) * 0.6);
+  liquidMat.color.copy(liqColor);
+  liquidMat.emissiveIntensity = 0.04 + 2.4 * I;
+  liquidMat.opacity = lerp(0.5, 0.1, molMix);
+  matGlass.opacity = lerp(0.2, 0.05, molMix);
+  const surfaceTop = LIQ_BASE + h;
+
+  /* --- sample rack slides in; serum level drops when aspirated --- */
+  rack.position.set(RACK_POS.x, 0.45, lerp(8.4, RACK_POS.z, ramp(t, 10, 16)));
+  const aspA = EV.SAMPLE.t0 - 9;
+  tubes[2].setLevel(TUBE_SERUM_TOP - 0.12 * ramp(t, aspA + 3.2, aspA + 5.7));
+
+  /* --- barcode reader beam --- */
+  const scanOn = (t > 17.5 && t < 21) ? 1 : 0;
+  const ly = 1.05 + 0.15 * Math.sin((t - 17.5) * 5);
+  const rz = rack.position.z + 0.205;
+  fanPos.set([SCAN_POS.x, SCAN_POS.y, SCAN_POS.z,  RACK_POS.x - 0.17, ly, rz,  RACK_POS.x + 0.17, ly, rz]);
+  fanGeo.attributes.position.needsUpdate = true;
+  fanMat.opacity = 0.3 * scanOn; scanLineMat.opacity = 0.95 * scanOn; scanLine.position.set(RACK_POS.x, ly, rz + 0.004);
+  scannerMat.emissiveIntensity = 0.1 + 2.0 * scanOn;
+
+  /* --- probes: follow their waypoint paths --- */
+  probes.forEach(p => {
+    samplePath(p.def.path, t, pathOut);
+    p.cur.set(pathOut.x, pathOut.y, pathOut.z); p.act = pathOut.act;
+    const d = p.def, armTop = d.armY;
+    p.carriage.position.set(pathOut.x, armTop, pathOut.z);
+    const dx = pathOut.x - d.pivot.x, dz = pathOut.z - d.pivot.z, len = Math.max(0.05, Math.hypot(dx, dz));
+    p.arm.position.set(d.pivot.x + dx / 2, armTop, d.pivot.z + dz / 2); p.arm.lookAt(pathOut.x, armTop, pathOut.z); p.arm.scale.z = len;
+    const nlen = Math.max(0.02, armTop - 0.07 - pathOut.y);
+    p.needle.scale.y = nlen; p.needle.position.set(pathOut.x, pathOut.y + nlen / 2, pathOut.z);
+    p.tip.position.set(pathOut.x, pathOut.y, pathOut.z);
+    /* liquid slug inside the needle while carrying */
+    let carry = 0, col = d.color;
+    if (d.ev){ const a = d.ev.t0 - 9; carry = ramp(t, a + 3.2, a + 5.7) * (1 - lin(t, d.ev.t0, d.ev.t1)); }
+    else { carry = ramp(t, W.drain0 - 0.1, W.drain1) * (1 - lin(t, 87.4, 88.6)); col = liqColor.getHex(); }
+    p.carry = carry;
+    const sl = Math.min(nlen, 0.4) * carry;
+    p.slug.visible = carry > 0.02; p.slug.scale.y = Math.max(sl, 0.001); p.slug.position.set(pathOut.x, pathOut.y + sl / 2, pathOut.z);
+    p.slugMat.color.setHex(col); p.slugMat.emissive.setHex(col);
+    p.tipMat.emissive.setHex(carry > 0.05 ? col : 0xffffff); p.tipMat.emissiveIntensity = carry > 0.05 ? 1.4 : 0.1;
+  });
+
+  /* --- dispensed droplets --- */
+  const DROP_Y0 = DISP_Y - 0.05, FALL = 0.45;
+  EVENTS.forEach(ev => {
+    const span = (ev.t1 - ev.t0) - FALL, n = ev.drops.length;
+    ev.drops.forEach((d, k) => {
+      const tau = t - (ev.t0 + span * k / (n - 1));
+      if (tau < 0 || tau > FALL){ d.mesh.visible = false; return; }
+      const g = 2 * (DROP_Y0 - Math.max(surfaceTop, 0.55)) / (FALL * FALL), y = DROP_Y0 - 0.5 * g * tau * tau;
+      d.mesh.visible = y > surfaceTop; d.mesh.position.set(CUV.x + d.jx, y, CUV.z + d.jz); d.mesh.scale.set(1, 1.3, 1);
+    });
+  });
+
+  /* --- reagent pack caps pulse while their probe is aspirating/dispensing --- */
+  bottles.forEach(b => {
+    const st = chipState(b.key, t);
+    b.capMat.emissiveIntensity = st === 'active' ? 1.4 + Math.sin(t * 10) * 0.9 : st === 'done' ? 0.45 : 0.25;
+    b.bodyMat.emissiveIntensity = st === 'active' ? 0.6 : 0.08;
+  });
+
+  /* --- magnet slides in from the back of the rotor --- */
+  const magIn = ramp(t, W.magIn0, W.magIn1) * (1 - ramp(t, W.magOut0, W.magOut1));
+  magnet.visible = magIn > 0.01; magnet.position.z = lerp(1.6, CZ - 0.42, magIn);
+  const magMix = ramp(t, W.pull0, W.pull1) * (1 - ramp(t, W.rel0, W.rel1));
+
+  /* --- hero microparticle --- */
+  const heroS = ramp(t, EV.R1.t0 + 2.4, EV.R1.t0 + 3.6);
+  heroGroup.visible = heroS > 0.01; heroGroup.scale.setScalar(Math.max(heroS, 0.001));
+  heroGroup.position.set(0, 0, -0.17 * magMix);
+  heroGroup.rotation.set(0.25 * Math.sin(t * 0.2), t * 0.22, 0.03 * t);
+  agItems.forEach(a => {
+    const p = ramp(t, a.t0, a.t0 + BIND_DUR);
+    drift(a.drift, t, tmpA).multiplyScalar(1 - p);
+    a.mesh.position.lerpVectors(a.start, a.end, p).add(tmpA);
+    a.mesh.scale.setScalar(1 + 0.5 * Math.sin(Math.PI * p));
+  });
+  const cjS = ramp(t, EV.R2.t0 + 1.3, EV.R2.t0 + 2.6);
+  cjItems.forEach(c => {
+    const p = ramp(t, c.t0, c.t0 + BIND_DUR);
+    drift(c.drift, t, tmpA).multiplyScalar(1 - p);
+    c.g.position.lerpVectors(c.start, c.end, p).add(tmpA);
+    c.g.scale.setScalar(Math.max(cjS, 0.001)); c.g.visible = cjS > 0.01;
+  });
+
+  /* --- free molecules --- */
+  const washOut = 1 - ramp(t, W.free0, W.free1);
+  const freeAgS = ramp(t, EV.R1.t0 + 2.4, EV.R1.t0 + 3.8) * washOut;
+  freeAg.forEach(f => { f.mesh.visible = freeAgS > 0.01; f.mesh.scale.setScalar(Math.max(freeAgS, 0.001)); f.mesh.position.copy(f.base).add(drift(f.drift, t, tmpA)); });
+  const freeCjS = ramp(t, EV.R2.t0 + 1.3, EV.R2.t0 + 2.8) * washOut;
+  freeCj.forEach(f => { f.g.visible = freeCjS > 0.01; f.g.scale.setScalar(Math.max(freeCjS, 0.001)); f.g.position.copy(f.base).add(drift(f.drift, t, tmpA)); f.g.rotation.y = t * f.spin; });
+  bgBeads.forEach(b => {
+    b.g.visible = heroS > 0.01; b.g.scale.setScalar(Math.max(heroS, 0.001));
+    drift(b.drift, t, tmpA).multiplyScalar(1 - magMix);
+    b.g.position.copy(b.base).lerp(b.wall, magMix).add(tmpA); b.g.rotation.y = t * b.spin;
+  });
+
+  /* --- substrate molecules drift to the enzymes and get consumed --- */
+  enzymeLocal.forEach((p, j) => enzWorld[j].copy(p).applyQuaternion(heroGroup.quaternion).multiplyScalar(heroGroup.scale.x).add(heroGroup.position));
+  const subS = ramp(t, EV.SUB.t0 + 1.0, EV.SUB.t0 + 2.4);
+  subMesh.visible = subS > 0.01;
+  subItems.forEach((s, k) => {
+    const p = ramp(t, s.tc, s.tc + 1.3);
+    drift(s.drift, t, tmpA);
+    tmpB.copy(s.base).add(tmpA).lerp(enzWorld[s.target], p);
+    const sc = subS * (1 - smooth((p - 0.88) / 0.12));
+    dummy.position.copy(tmpB); dummy.scale.setScalar(Math.max(sc, 0.0001)); dummy.updateMatrix(); subMesh.setMatrixAt(k, dummy.matrix);
+  });
+  subMesh.instanceMatrix.needsUpdate = true;
+
+  /* --- chemiluminescence --- */
+  enzMat.emissiveIntensity = 6 * I;
+  haloMat.opacity = clamp01(I * 1.1);
+  halos.forEach(s => { s.visible = I > 0.01; s.scale.setScalar(0.035 + 0.09 * I); });
+  for (let j = 0; j < N_CJ; j++) for (let m = 0; m < PH_PER; m++){
+    const idx = j * PH_PER + m, ph = (t * 0.9 + phPhase[idx]) % 1, r = ph * 0.11 * phSpeed[idx];
+    const o = enzymeLocal[j], d = phDir[idx], fade = (1 - ph) * (1 - ph) * I * 1.8;
+    phPos[idx * 3] = o.x + d.x * r; phPos[idx * 3 + 1] = o.y + d.y * r; phPos[idx * 3 + 2] = o.z + d.z * r;
+    phCol[idx * 3] = 0.45 * fade; phCol[idx * 3 + 1] = 0.75 * fade; phCol[idx * 3 + 2] = fade;
+  }
+  phGeo.attributes.position.needsUpdate = true; phGeo.attributes.color.needsUpdate = true;
+  glowLight.intensity = 1.0 * I;
+  cuvGlowMat.opacity = 0.55 * I * (1 - molMix * 0.9); cuvGlow.scale.setScalar(1.2 + 1.5 * I);
+  pmtWinMat.emissiveIntensity = 0.1 + 5 * I; coneMat.opacity = 0.4 * I;
+
+  /* --- photometer: beam passes through the cuvette --- */
+  const on = ramp(t, BEAM_ON, BEAM_ON + 1.2);
+  const A = absorbanceAt(t) || 0, Tr = transmittanceOf(A);
+  const segMul = [1, Math.pow(Tr, 0.25), Math.pow(Tr, 0.75), Tr];
+  beamSegs.forEach((pair, i) => pair.forEach(s => { s.mat.opacity = s.base * on * segMul[i]; }));
+  bulbMat.emissiveIntensity = 0.1 + 5 * on; flareMat.opacity = 0.8 * on; flare.scale.setScalar(0.35 + 0.1 * Math.sin(t * 30) * on);
+  filterMat.emissiveIntensity = 0.3 + 1.5 * on;
+  diodeMat.emissiveIntensity = 0.1 + 4 * on * Tr;
+  if (bloom) bloom.strength = 0.22 + 1.0 * I + 0.5 * on;
+}
+
+/* ======================= 8. JS / UI ======================= */
+const $ = s => document.querySelector(s);
+function fmtTime(s){ s = Math.floor(s); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+const stageIndexAt = t => { let i = 0; STAGES.forEach((s, k) => { if (t >= s.t0) i = k; }); return i; };
+
+/* ---- status chips ---- */
+function chipState(key, t){
+  const evState = ev => t < ev.t0 - 9 + 2 ? 'idle' : t < ev.t1 + 0.4 ? 'active' : 'done';   // active from when the probe leaves home
+  switch (key){
+    case 'SAMPLE': return evState(EV.SAMPLE);
+    case 'R1':     return evState(EV.R1);
+    case 'R2':     return evState(EV.R2);
+    case 'SUB':    return evState(EV.SUB);
+    case 'WASH':   return t < 76 ? 'idle' : t < 88.6 ? 'active' : 'done';
+    case 'PMT':    return t < FLASH_ONSET - 0.2 ? 'idle' : t < BEAM_ON ? 'active' : 'done';
+    case 'PHOTO':  return t < BEAM_ON ? 'idle' : t < T_TOTAL - 0.01 ? 'active' : 'done';
+  }
+  return 'idle';
+}
+const chipText = { SAMPLE:['Idle','Working','Done'], R1:['Idle','Working','Done'], R2:['Idle','Working','Done'], SUB:['Idle','Working','Done'],
+                   WASH:['Idle','Washing','Done'], PMT:['Idle','Counting','Done'], PHOTO:['Idle','Reading','Done'] };
+const chipEls = [...document.querySelectorAll('.chip')], chipCache = {};
+function updateChips(t){
+  chipEls.forEach(el => {
+    const key = el.dataset.chip, st = chipState(key, t);
+    if (chipCache[key] === st) return; chipCache[key] = st;
+    el.classList.toggle('active', st === 'active'); el.classList.toggle('done', st === 'done');
+    el.querySelector('.chip-state').textContent = chipText[key][st === 'idle' ? 0 : st === 'active' ? 1 : 2];
+  });
+}
+
+/* ---- stage card, list, step buttons ---- */
+const stageCard = $('#stageCard'), stageList = $('#stageList'), stepsEl = $('#steps');
+STAGES.forEach((s, i) => {
+  const li = document.createElement('li'); li.className = 'stage-row'; li.dataset.i = i;
+  li.innerHTML = `<span class="idx">${i + 1}</span><span class="nm">${s.name}</span><span class="tm">${fmtTime(s.t0)}</span>`;
+  li.addEventListener('click', () => seekTo(s.t0 + 0.01)); stageList.appendChild(li);
+  const b = document.createElement('button'); b.className = 'step'; b.dataset.i = i;
+  b.innerHTML = `<div class="s-n">STEP ${i + 1}</div><div class="s-t">${s.short}</div><div class="s-fill"></div>`;
+  b.addEventListener('click', () => seekTo(s.t0 + 0.01)); stepsEl.appendChild(b);
+});
+const rowEls = [...stageList.children], stepEls = [...stepsEl.children];
+let lastStage = -1;
+function renderStageCard(i){
+  const s = STAGES[i];
+  stageCard.classList.remove('fade-in'); void stageCard.offsetWidth; stageCard.classList.add('fade-in');
+  stageCard.innerHTML = `<div class="stage-badge">Step ${i + 1} / ${STAGES.length}</div>
+    <h3 class="stage-title">${s.name}</h3><p class="stage-desc">${s.summary}</p>
+    <ul class="stage-points">${s.points.map(p => `<li>${p}</li>`).join('')}</ul>
+    <div class="tags">${s.tags.map(x => `<span class="tag">${x}</span>`).join('')}</div>`;
+}
+
+/* ---- charts ---- */
+Chart.defaults.color = '#8fa3bf'; Chart.defaults.font.size = 10;
+const CH_STEP = 0.4, ts = []; for (let t = 0; t <= T_TOTAL + 1e-6; t += CH_STEP) ts.push(t);
+const dataVol  = ts.map(t => ({ x:t, y:volumeAt(t) }));
+const dataCap  = ts.map(t => { const f = capFrac(t);  return { x:t, y:clamp01(f + (f > 0.01 && f < 0.99 ? noise(t, 1) * 0.015 : 0)) * 100 }; });
+const dataConj = ts.map(t => { const f = conjFrac(t); return { x:t, y:clamp01(f + (f > 0.01 && f < 0.99 ? noise(t, 2) * 0.015 : 0)) * 100 }; });
+const dataRlu  = ts.map(t => ({ x:t, y:Math.max(0, intensityAt(t) * PEAK_RLU_K * (1 + 0.04 * noise(t, 3)) + (t > 0 ? 2 + noise(t, 4) * 2 : 0)) }));
+const dataAbs  = ts.map(t => { const a = absorbanceAt(t); return { x:t, y:a === null ? null : Math.max(0, a) }; });
+
+const markerPlugin = {
+  id:'marker',
+  beforeDatasetsDraw(chart){
+    const { ctx, chartArea:a, scales:{ x } } = chart; ctx.save();
+    STAGES.forEach((s, i) => { if (i % 2) return; ctx.fillStyle = 'rgba(255,255,255,.025)';
+      ctx.fillRect(x.getPixelForValue(s.t0), a.top, x.getPixelForValue(s.t1) - x.getPixelForValue(s.t0), a.bottom - a.top); });
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart){
+    const { ctx, chartArea:a, scales:{ x } } = chart, px = x.getPixelForValue(state.t);
+    ctx.save(); ctx.strokeStyle = 'rgba(56,189,248,.85)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke(); ctx.restore();
+  }
+};
+function makeChart(id, datasets, ymax){
+  return new Chart(document.getElementById(id), {
+    type:'line',
+    data:{ datasets:datasets.map(d => ({ ...d, data:[], parsing:false, normalized:true, pointRadius:0, borderWidth:2, tension:0.25, spanGaps:false })) },
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false, interaction:{ mode:'nearest', intersect:false },
+      scales:{ x:{ type:'linear', min:0, max:T_TOTAL, ticks:{ stepSize:30 }, grid:{ color:'rgba(255,255,255,.05)' } },
+               y:{ min:0, max:ymax, grid:{ color:'rgba(255,255,255,.06)' }, ticks:{ maxTicksLimit:5 } } },
+      plugins:{ legend:{ display:datasets.length > 1, labels:{ boxWidth:8, boxHeight:8 } }, tooltip:{ enabled:false } }
+    },
+    plugins:[markerPlugin]
+  });
+}
+const allCharts = [
+  makeChart('chVol',  [{ label:'Volume (µL)', borderColor:'#38bdf8', backgroundColor:'rgba(56,189,248,.15)', fill:true, _full:dataVol }], 220),
+  makeChart('chBind', [{ label:'Antigen captured', borderColor:'#34d399', _full:dataCap }, { label:'Conjugate bound', borderColor:'#c084fc', _full:dataConj }], 100),
+  makeChart('chRlu',  [{ label:'RLU ×10³', borderColor:'#67e8f9', backgroundColor:'rgba(103,232,249,.15)', fill:true, _full:dataRlu }], 1400),
+  makeChart('chAbs',  [{ label:'Absorbance (A)', borderColor:'#fb7185', backgroundColor:'rgba(251,113,133,.15)', fill:true, _full:dataAbs }], 0.8)
+];
+function updateCharts(t){
+  const n = Math.min(ts.length, Math.floor(t / CH_STEP) + 1);
+  allCharts.forEach(ch => { ch.data.datasets.forEach(d => { d.data = d._full.slice(0, n); }); ch.update('none'); });
+}
+
+/* ---- UI refresh (throttled from the render loop) ---- */
+const btnPlay = $('#btnPlay'), btnPause = $('#btnPause'), seek = $('#seek'), startOverlay = $('#startOverlay'), legend = $('#legend');
+let seeking = false, lastScreenSec = -1;
+function syncButtons(){
+  btnPlay.classList.toggle('on', state.playing); btnPause.classList.toggle('on', !state.playing && state.t > 0 && state.t < T_TOTAL);
+  startOverlay.classList.toggle('hidden', state.playing || state.t > 0);
+}
+function updateUI(t){
+  const si = stageIndexAt(t);
+  if (si !== lastStage){
+    lastStage = si; renderStageCard(si);
+    rowEls.forEach((r, i) => { r.classList.toggle('active', i === si); r.classList.toggle('done', i < si); });
+  }
+  stepEls.forEach((el, i) => {
+    const s = STAGES[i], p = clamp01((t - s.t0) / (s.t1 - s.t0));
+    el.classList.toggle('active', i === si); el.classList.toggle('done', t >= s.t1 - 0.01);
+    el.querySelector('.s-fill').style.width = (t >= s.t1 - 0.01 ? 100 : p * 100) + '%';
+  });
+  updateChips(t);
+  $('#hudStage').innerHTML = `STEP <b>${si + 1}/${STAGES.length}</b> · ${STAGES[si].short}`;
+  const dist = camera.position.distanceTo(heroWorld);
+  $('#hudScale').textContent = t < SHELL_FADE[1] ? 'Analyzer exterior' : dist > 3 ? 'Instrument scale' : molMix < 0.5 ? 'Cuvette scale (mm)' : 'Molecular scale (nm · exaggerated)';
+  legend.style.opacity = clamp01((molMix - 0.3) / 0.4);
+  $('#timeLabel').textContent = fmtTime(t) + ' / ' + fmtTime(T_TOTAL);
+  if (!seeking) seek.value = Math.round(t / T_TOTAL * 1000);
+  $('#roVol').textContent = Math.round(volumeAt(t)) + ' µL';
+  $('#roTemp').textContent = (37 + noise(Math.floor(t * 2), 9) * 0.2).toFixed(1) + ' °C';
+  const bound = t < 66 ? capFrac(t) : (capFrac(t) * 0.35 + conjFrac(t) * 0.65);
+  $('#roBind').textContent = Math.round(bound * 100) + ' %';
+  const rlu = Math.round(intensityAt(t) * PEAK_RLU_K * 1000);
+  $('#roRlu').textContent = rlu >= 1e6 ? (rlu / 1e6).toFixed(2) + 'M RLU' : rlu >= 1e3 ? Math.round(rlu / 1e3) + 'k RLU' : rlu + ' RLU';
+  const A = absorbanceAt(t);
+  $('#roAbs').textContent = A === null ? '—' : Math.max(0, A).toFixed(3) + ' A';
+  $('#roTrans').textContent = A === null ? '—' : (transmittanceOf(Math.max(0, A)) * 100).toFixed(1) + ' %';
+  updateCharts(t);
+  const sec = Math.floor(t * 2); if (sec !== lastScreenSec){ lastScreenSec = sec; drawScreen(t, STAGES[si].name); }
+  syncButtons();
+}
+
+/* ---- controls ---- */
+function seekTo(t){ state.t = clamp01(t / T_TOTAL) * T_TOTAL; updateUI(state.t); }
+function play(){ if (state.t >= T_TOTAL - 0.01) state.t = 0; state.playing = true; syncButtons(); }
+function pause(){ state.playing = false; syncButtons(); }
+function reset(){ state.playing = false; state.t = 0; lastStage = -1; updateUI(0); }
+btnPlay.addEventListener('click', play); btnPause.addEventListener('click', pause); $('#btnReset').addEventListener('click', reset);
+$('#startBtn').addEventListener('click', play);
+$('#speedSel').addEventListener('change', e => { state.speed = parseFloat(e.target.value); });
+$('#showLabels').addEventListener('change', e => { state.labels = e.target.checked; labelsLayer.style.display = state.labels ? '' : 'none'; });
+$('#freeCam').addEventListener('change', e => {
+  state.free = e.target.checked; controls.enabled = state.free;
+  if (state.free){ controls.target.copy(camLook); controls.update(); }
+});
+seek.addEventListener('pointerdown', () => { seeking = true; });
+seek.addEventListener('pointerup', () => { seeking = false; });
+seek.addEventListener('input', () => { state.t = seek.value / 1000 * T_TOTAL; updateUI(state.t); });
+window.addEventListener('keydown', e => {
+  if (e.target !== document.body) return;
+  if (e.code === 'Space'){ e.preventDefault(); state.playing ? pause() : play(); }
+  if (e.key === 'r' || e.key === 'R') reset();
+});
+document.querySelectorAll('.panel-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = document.getElementById(btn.dataset.target); p.classList.toggle('collapsed');
+    if (window.innerWidth > 1020) btn.querySelector('svg').style.transform = p.classList.contains('collapsed') ? 'rotate(180deg)' : '';
+  });
+});
+
+/* ---- identity bar projection ---- */
+const lv = new THREE.Vector3();
+function updateLabels(t){
+  if (!state.labels) return;
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  labelList.forEach(L => {
+    let show = L.vis(t) && molMix < 0.45;
+    if (show){
+      L.anchor(t, lv); lv.project(camera);
+      if (lv.z > 1 || lv.z < -1 || Math.abs(lv.x) > 1.08 || Math.abs(lv.y) > 1.08) show = false;
+    }
+    if (!show){ if (L.shown){ L.el.style.opacity = '0'; L.shown = false; } return; }
+    L.shown = true; L.el.style.opacity = (1 - clamp01((molMix - 0.2) / 0.25)).toFixed(2);
+    L.el.style.transform = `translate(${((lv.x * 0.5 + 0.5) * w).toFixed(1)}px,${((-lv.y * 0.5 + 0.5) * h).toFixed(1)}px) translate(-50%,calc(-100% - 10px))`;
+    if (L.sub){ const s = L.sub(t); if (s !== L.lastSub){ L.lastSub = s; L.subEl.textContent = s; } }
+  });
+}
+
+/* ---- render loop ---- */
+let last = performance.now(), uiAcc = 1;
+function loop(now){
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (state.playing){
+    state.t = Math.min(T_TOTAL, state.t + dt * state.speed);
+    if (state.t >= T_TOTAL){ state.playing = false; syncButtons(); }
+  }
+  applyScene(state.t);
+  camera.updateMatrixWorld(); updateLabels(state.t);
+  if (composer) composer.render(); else renderer.render(scene, camera);
+  uiAcc += dt; if (uiAcc > 0.1){ uiAcc = 0; updateUI(state.t); }
+  requestAnimationFrame(loop);
+}
+updateUI(0);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
