@@ -27,12 +27,6 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       emptyOutDir: true,
-      rollupOptions: {
-        input: {
-          main: path.resolve(__dirname, 'index.html'),
-          advancedConcept3d: path.resolve(__dirname, 'advanced-concept-3d.html'),
-        },
-      },
     }
   };
 });
